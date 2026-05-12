@@ -46,7 +46,9 @@
                     <span>Join Chat</span>
                 </button>
             </form>
-            <div id="status-msg" class="mt-4 text-xs font-medium text-amber-600">Initializing connection...</div>
+            <div id="status-msg" class="mt-4 text-xs font-medium text-amber-600 p-3 bg-amber-50 rounded-lg">
+                Checking connection settings...
+            </div>
         </div>
     </div>
 
@@ -95,43 +97,62 @@
         const statusMsg = document.getElementById('status-msg');
         const joinBtn = document.getElementById('join-btn');
 
+        // ==========================================
+        // STEP 1: CONFIGURATION
+        // ==========================================
         let firebaseConfig;
         let isConfigured = false;
 
-        // Try to get config from environment, otherwise prompt for setup
         try {
+            // Check if running in the AI editor (Canvas)
             if (typeof __firebase_config !== 'undefined') {
                 firebaseConfig = JSON.parse(__firebase_config);
                 isConfigured = true;
-                statusMsg.textContent = "Ready to join";
-                statusMsg.className = "mt-4 text-xs font-medium text-green-600";
+                statusMsg.textContent = "Ready: AI Environment Connected";
+                statusMsg.classList.replace('text-amber-600', 'text-green-600');
             } else {
-                throw new Error("No config");
+                throw new Error("No environment config found");
             }
         } catch (e) {
-            statusMsg.textContent = "⚠️ Firebase Config Missing! Edit the file to add your API Key.";
-            statusMsg.className = "mt-4 text-xs font-medium text-red-600";
-            
-            // DEFAULT PLACEHOLDER - Users must replace this on GitHub
+            // If running on GitHub, the AI config is gone.
+            // You MUST fill this part out with your own Firebase keys.
+            // Go to https://console.firebase.google.com to get your keys for free.
             firebaseConfig = {
-                apiKey: "REPLACE_WITH_YOUR_KEY",
-                authDomain: "YOUR_PROJECT.firebaseapp.com",
-                projectId: "YOUR_PROJECT_ID",
-                storageBucket: "YOUR_PROJECT.appspot.com",
-                messagingSenderId: "YOUR_ID",
-                appId: "YOUR_APP_ID"
+                apiKey: "PASTE_YOUR_API_KEY_HERE",
+                authDomain: "PASTE_YOUR_AUTH_DOMAIN_HERE",
+                projectId: "PASTE_YOUR_PROJECT_ID_HERE",
+                storageBucket: "PASTE_YOUR_STORAGE_BUCKET_HERE",
+                messagingSenderId: "PASTE_YOUR_SENDER_ID_HERE",
+                appId: "PASTE_YOUR_APP_ID_HERE"
             };
+
+            if (firebaseConfig.apiKey.includes("PASTE_YOUR")) {
+                statusMsg.textContent = "⚠️ CONNECTION ERROR: You are on GitHub but haven't added your Firebase keys to the code yet. The button won't work until you add them!";
+                statusMsg.classList.replace('text-amber-600', 'text-red-600');
+            } else {
+                isConfigured = true;
+                statusMsg.textContent = "Connecting to your Firebase...";
+                statusMsg.classList.replace('text-amber-600', 'text-indigo-600');
+            }
         }
 
         const appIdentifier = typeof __app_id !== 'undefined' ? __app_id : 'github-live-chat';
 
         let app, auth, db;
-        if (isConfigured || firebaseConfig.apiKey !== "REPLACE_WITH_YOUR_KEY") {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
+        if (isConfigured) {
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+            } catch (err) {
+                statusMsg.textContent = "⚠️ Firebase Init Error: Check your keys.";
+                console.error(err);
+            }
         }
 
+        // ==========================================
+        // STEP 2: APP LOGIC
+        // ==========================================
         let currentUser = null;
         let displayName = localStorage.getItem('chat_username') || '';
 
@@ -148,7 +169,10 @@
         };
 
         async function initAuth() {
-            if (!auth) return;
+            if (!auth) {
+                console.error("Auth not initialized. Did you add your keys?");
+                return;
+            }
             try {
                 joinBtn.disabled = true;
                 joinBtn.innerHTML = '<div class="loading-spinner"></div> Connecting...';
@@ -159,9 +183,9 @@
                     await signInAnonymously(auth);
                 }
             } catch (err) { 
-                console.error("Auth error:", err); 
+                console.error("Login failed:", err); 
                 statusMsg.textContent = "Connection Error: " + err.message;
-                statusMsg.className = "mt-4 text-xs font-medium text-red-600";
+                statusMsg.classList.replace('text-amber-600', 'text-red-600');
             } finally {
                 joinBtn.disabled = false;
                 joinBtn.innerHTML = 'Join Chat';
@@ -189,7 +213,7 @@
                     .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
                 render(msgs);
             }, (err) => {
-                console.error("Firestore error:", err);
+                console.error("Database error:", err);
             });
         }
 
@@ -220,8 +244,8 @@
             const name = elements.userInput.value.trim();
             if (!name) return;
             
-            if (!isConfigured && firebaseConfig.apiKey === "REPLACE_WITH_YOUR_KEY") {
-                statusMsg.textContent = "Cannot join: Firebase not configured in code.";
+            if (!isConfigured) {
+                statusMsg.textContent = "Error: Firebase keys are missing in the code.";
                 return;
             }
 
