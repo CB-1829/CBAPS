@@ -9,13 +9,17 @@
     <style>
         .scrollbar-thin::-webkit-scrollbar { width: 6px; }
         .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         #messages-container { scroll-behavior: smooth; }
         .msg-me { background-color: #4f46e5; color: white; border-bottom-right-radius: 0; }
         .msg-them { background-color: white; color: #1e293b; border-bottom-left-radius: 0; border: 1px solid #e2e8f0; }
         .key-input { letter-spacing: 0.5em; text-align: center; font-family: monospace; }
         .loader { border-top-color: #4f46e5; animation: spinner 1.5s linear infinite; }
         @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Modal Animation */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-active { opacity: 1; transform: scale(1); transition: all 0.2s ease-out; }
     </style>
 </head>
 <body class="bg-slate-950 h-screen flex flex-col font-sans text-slate-200 overflow-hidden">
@@ -42,7 +46,6 @@
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
                     Continue with Google
                 </button>
-                <p class="text-[10px] text-slate-600 italic">If popup fails, try again to use redirect mode.</p>
             </div>
         </div>
     </div>
@@ -63,11 +66,10 @@
                 <div class="space-y-3">
                     <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Generate 3 High-Bit Keyfiles</label>
                     <div class="grid grid-cols-1 gap-3">
-                        <input type="text" placeholder="FILE SEED 1" id="k1" class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center font-mono focus:border-indigo-500 outline-none" required>
-                        <input type="text" placeholder="FILE SEED 2" id="k2" class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center font-mono focus:border-indigo-500 outline-none" required>
-                        <input type="text" placeholder="FILE SEED 3" id="k3" class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center font-mono focus:border-indigo-500 outline-none" required>
+                        <input type="text" placeholder="FILE SEED 1" id="k1" class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center font-mono focus:border-indigo-500 outline-none text-white" required>
+                        <input type="text" placeholder="FILE SEED 2" id="k2" class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center font-mono focus:border-indigo-500 outline-none text-white" required>
+                        <input type="text" placeholder="FILE SEED 3" id="k3" class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center font-mono focus:border-indigo-500 outline-none text-white" required>
                     </div>
-                    <p class="text-[9px] text-slate-500 text-center">System will generate 1024-char salt files for each seed.</p>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 p-4 rounded-xl font-bold hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20">Seal & Lock Vault</button>
             </form>
@@ -85,12 +87,12 @@
             </div>
             <div>
                 <h1 class="text-2xl font-bold text-white">Hello, <span id="lock-user-name"></span></h1>
-                <p class="text-slate-500 text-sm">Owner identity confirmed. Provide key seeds to re-generate session token.</p>
+                <p class="text-slate-500 text-sm">Owner identity confirmed. Provide key seeds.</p>
             </div>
             <div class="space-y-3">
-                <input type="password" id="unlock-k1" placeholder="Seed A" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl key-input outline-none focus:border-indigo-500">
-                <input type="password" id="unlock-k2" placeholder="Seed B" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl key-input outline-none focus:border-indigo-500">
-                <input type="password" id="unlock-k3" placeholder="Seed C" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl key-input outline-none focus:border-indigo-500">
+                <input type="password" id="unlock-k1" placeholder="Seed A" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl key-input outline-none focus:border-indigo-500 text-white">
+                <input type="password" id="unlock-k2" placeholder="Seed B" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl key-input outline-none focus:border-indigo-500 text-white">
+                <input type="password" id="unlock-k3" placeholder="Seed C" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl key-input outline-none focus:border-indigo-500 text-white">
             </div>
             <button id="unlock-btn" class="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-500/10">Reconstruct Vault</button>
             <p id="lock-status" class="text-xs text-red-400 font-medium h-4"></p>
@@ -104,12 +106,13 @@
             <div class="flex items-center gap-4">
                 <img id="app-avatar" class="w-10 h-10 rounded-xl shadow-md" src="">
                 <div>
-                    <h2 class="font-black text-slate-900 text-lg tracking-tight">Master Hub</h2>
+                    <h2 id="hub-display-name" class="font-black text-slate-900 text-lg tracking-tight">Master Hub</h2>
                     <p id="owner-tag" class="text-[10px] text-green-500 uppercase font-bold tracking-widest">Admin Secured</p>
                 </div>
             </div>
             <div class="flex gap-4">
-                <button id="logout-btn" class="text-slate-300 hover:text-red-500 transition-all"><i class="fas fa-power-off"></i></button>
+                <button id="settings-btn" class="text-slate-400 hover:text-indigo-600 transition-all text-xl"><i class="fas fa-cog"></i></button>
+                <button id="logout-btn" class="text-slate-300 hover:text-red-500 transition-all text-xl"><i class="fas fa-power-off"></i></button>
             </div>
         </header>
 
@@ -117,7 +120,7 @@
 
         <footer class="p-6 bg-white border-t border-slate-100">
             <form id="chat-form" action="javascript:void(0);" class="flex gap-3">
-                <input type="text" id="message-input" placeholder="Broadcast to network..." class="flex-1 bg-slate-100 border-none rounded-2xl px-6 py-4 text-sm outline-none">
+                <input type="text" id="message-input" placeholder="Broadcast to network..." class="flex-1 bg-slate-100 border-none rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 ring-indigo-500/20">
                 <button type="submit" class="bg-indigo-600 text-white w-14 h-14 rounded-2xl shadow-lg hover:bg-indigo-700 flex items-center justify-center text-xl">
                     <i class="fas fa-paper-plane"></i>
                 </button>
@@ -125,22 +128,54 @@
         </footer>
     </div>
 
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="hidden fixed inset-0 z-[250] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="max-w-lg w-full bg-white rounded-3xl shadow-2xl overflow-hidden text-slate-900 transform transition-all">
+            <div class="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 class="text-xl font-black tracking-tight">Hub Configuration</h3>
+                <button id="close-settings" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-thin">
+                <!-- App Branding -->
+                <div class="space-y-4">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Public Branding</label>
+                    <input type="text" id="config-hub-name" placeholder="Hub Display Name" class="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-indigo-500">
+                </div>
+
+                <!-- Key Rotation -->
+                <div class="space-y-4 pt-4 border-t border-slate-100">
+                    <div class="flex justify-between items-end">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Key Rotation</label>
+                        <span class="text-[9px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded font-bold">WARNING: REPLACES OLD KEYS</span>
+                    </div>
+                    <div class="grid grid-cols-1 gap-3">
+                        <input type="text" id="config-k1" placeholder="New Seed A" class="bg-slate-50 border border-slate-200 p-4 rounded-xl font-mono text-sm outline-none focus:border-indigo-500">
+                        <input type="text" id="config-k2" placeholder="New Seed B" class="bg-slate-50 border border-slate-200 p-4 rounded-xl font-mono text-sm outline-none focus:border-indigo-500">
+                        <input type="text" id="config-k3" placeholder="New Seed C" class="bg-slate-50 border border-slate-200 p-4 rounded-xl font-mono text-sm outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+            </div>
+            <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4">
+                <button id="save-config" class="flex-1 bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">Commit Changes</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, addDoc, query, onSnapshot, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, addDoc, query, onSnapshot, serverTimestamp, orderBy, limit, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         let db, auth, currentUser, vaultConfig;
+        let currentKeySeeds = []; // Track keys to delete old ones during rotation
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'google-secure-hub';
         const debugEl = document.getElementById('loading-debug');
         
-        // --- HELPERS ---
         const log = (msg) => {
             console.log(`[Bridge]: ${msg}`);
             if (debugEl) debugEl.textContent = msg;
         };
 
-        // Generates 1000+ characters of random data for the "key file"
         const generateKeyBlob = (seed) => {
             let blob = `[SECURE_KEY_PART_v2.0]\nSEED_REF: ${seed}\nTIMESTAMP: ${Date.now()}\n----------------------------------\n`;
             const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
@@ -161,77 +196,67 @@
             document.getElementById(id).classList.remove('hidden');
         };
 
-        // --- 1. STARTUP ---
+        // --- AUTH & STARTUP ---
         async function start() {
-            log("Initializing Firebase...");
+            log("Initializing Core...");
             try {
                 const firebaseConfig = JSON.parse(__firebase_config);
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                log("Checking redirect results...");
                 const result = await getRedirectResult(auth);
-                if (result?.user) log("Redirect auth successful.");
-
+                
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        log(`User authenticated.`);
                         currentUser = user;
                         await checkVaultStatus();
                     } else {
-                        log("Awaiting identification.");
                         showLayer('auth-layer');
                     }
                 });
             } catch (err) {
-                log("Critical Fail: " + err.message);
+                log("Fail: " + err.message);
             }
         }
 
-        // --- 2. GOOGLE LOGIN ---
-        let loginAttempts = 0;
         document.getElementById('google-login-btn').onclick = async () => {
             const provider = new GoogleAuthProvider();
-            loginAttempts++;
-            try {
-                if (loginAttempts > 1) await signInWithRedirect(auth, provider);
-                else await signInWithPopup(auth, provider);
-            } catch (e) {
-                await signInWithRedirect(auth, provider);
-            }
+            try { await signInWithPopup(auth, provider); } 
+            catch (e) { await signInWithRedirect(auth, provider); }
         };
 
-        // --- 3. CHECK OWNERSHIP ---
         async function checkVaultStatus() {
-            log("Accessing Vault Metadata...");
+            log("Syncing Metadata...");
             try {
                 const metaRef = getVaultDoc('config', 'vault_metadata');
                 const metaSnap = await getDoc(metaRef);
 
                 if (!metaSnap.exists()) {
-                    log("Primary registration required.");
+                    showLayer('setup-layer');
                     document.getElementById('setup-avatar').src = currentUser.photoURL || '';
                     document.getElementById('setup-name').textContent = currentUser.displayName || 'Master';
                     document.getElementById('setup-email').textContent = currentUser.email;
-                    showLayer('setup-layer');
                 } else {
                     vaultConfig = metaSnap.data();
                     if (vaultConfig.ownerUid !== currentUser.uid) {
-                        alert("UNAUTHORIZED: Identity does not match Master Record.");
+                        alert("UNAUTHORIZED ACCESS DENIED");
                         await signOut(auth);
                         return;
                     }
+                    
+                    // Update UI with hub name
+                    document.getElementById('hub-display-name').textContent = vaultConfig.hubName || "Master Hub";
+                    document.getElementById('config-hub-name').value = vaultConfig.hubName || "Master Hub";
+                    
                     document.getElementById('lock-avatar').src = currentUser.photoURL || '';
                     document.getElementById('lock-user-name').textContent = (currentUser.displayName || 'Master').split(' ')[0];
                     showLayer('lock-layer');
                 }
-            } catch (e) {
-                log("DB Error: " + e.message);
-            }
+            } catch (e) { log("DB Error: " + e.message); }
         }
 
-        // --- 4. INITIAL SETUP ---
+        // --- SETUP ---
         document.getElementById('init-form').onsubmit = async (e) => {
             e.preventDefault();
             const seeds = [
@@ -239,86 +264,77 @@
                 document.getElementById('k2').value.trim(),
                 document.getElementById('k3').value.trim()
             ];
-
-            try {
-                log("Writing secure manifests...");
-                const metaRef = getVaultDoc('config', 'vault_metadata');
-                await setDoc(metaRef, { 
-                    ownerEmail: currentUser.email, 
-                    ownerUid: currentUser.uid,
-                    ownerName: currentUser.displayName,
-                    ownerPhoto: currentUser.photoURL,
-                    initialized: true 
-                });
-
-                for (let i = 0; i < 3; i++) {
-                    const keyRef = getVaultDoc('keys', `key_part_${seeds[i]}`);
-                    await setDoc(keyRef, { 
-                        content: generateKeyBlob(seeds[i]), 
-                        part: i, 
-                        createdAt: serverTimestamp() 
-                    });
-                }
-
-                alert("Vault Sealed. Key manifests generated.");
-                location.reload();
-            } catch (err) {
-                alert("Setup Failed: " + err.message);
-            }
+            await saveNewConfig("Master Hub", seeds);
+            alert("Vault Sealed.");
+            location.reload();
         };
 
-        // --- 5. DECRYPTION ---
+        async function saveNewConfig(hubName, seeds) {
+            const metaRef = getVaultDoc('config', 'vault_metadata');
+            await setDoc(metaRef, { 
+                ownerEmail: currentUser.email, 
+                ownerUid: currentUser.uid,
+                ownerName: currentUser.displayName,
+                ownerPhoto: currentUser.photoURL,
+                hubName: hubName,
+                seeds: seeds, // Store seeds reference to know which docs to delete later
+                initialized: true 
+            });
+
+            for (let i = 0; i < 3; i++) {
+                const keyRef = getVaultDoc('keys', `key_part_${seeds[i]}`);
+                await setDoc(keyRef, { 
+                    content: generateKeyBlob(seeds[i]), 
+                    part: i, 
+                    createdAt: serverTimestamp() 
+                });
+            }
+        }
+
+        // --- UNLOCK ---
         document.getElementById('unlock-btn').onclick = async () => {
-            const k1 = document.getElementById('unlock-k1').value;
-            const k2 = document.getElementById('unlock-k2').value;
-            const k3 = document.getElementById('unlock-k3').value;
+            const seeds = [
+                document.getElementById('unlock-k1').value.trim(),
+                document.getElementById('unlock-k2').value.trim(),
+                document.getElementById('unlock-k3').value.trim()
+            ];
             const status = document.getElementById('lock-status');
-            
-            status.textContent = "Pulling bitstreams from vault...";
+            status.textContent = "Verifying keys...";
 
             try {
-                const results = await Promise.all([
-                    getDoc(getVaultDoc('keys', `key_part_${k1}`)),
-                    getDoc(getVaultDoc('keys', `key_part_${k2}`)),
-                    getDoc(getVaultDoc('keys', `key_part_${k3}`))
-                ]);
-
+                const results = await Promise.all(seeds.map(s => getDoc(getVaultDoc('keys', `key_part_${s}`))));
                 if (results.every(snap => snap.exists())) {
-                    log("Handshake successful.");
+                    currentKeySeeds = seeds;
                     launchApp();
                 } else {
-                    status.textContent = "BITSTREAM MISMATCH - ACCESS DENIED";
+                    status.textContent = "AUTH FAILURE";
                 }
-            } catch (e) {
-                status.textContent = "Vault unreachable.";
-            }
+            } catch (e) { status.textContent = "Error accessing vault."; }
         };
 
-        // --- 6. MAIN APP ---
+        // --- CHAT LOGIC ---
         function launchApp() {
             showLayer('chat-app');
             document.getElementById('app-avatar').src = currentUser.photoURL || '';
-            
-            log("Active session verified.");
             const q = getMessagesCol();
             onSnapshot(q, (snap) => {
                 const msgs = [];
                 snap.forEach(d => msgs.push(d.data()));
                 msgs.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-                render(msgs);
+                renderMessages(msgs);
             });
         }
 
-        function render(msgs) {
+        function renderMessages(msgs) {
             const container = document.getElementById('messages-container');
-            container.innerHTML = msgs.length === 0 ? '<div class="text-center py-20 text-slate-300 italic">No network traffic detected.</div>' : '';
+            container.innerHTML = msgs.length === 0 ? '<div class="text-center py-20 text-slate-300 italic">No traffic.</div>' : '';
             msgs.forEach(msg => {
                 const isMe = msg.uid === currentUser.uid;
                 const div = document.createElement('div');
                 div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
                 div.innerHTML = `
                     <span class="text-[10px] font-bold text-slate-400 mb-1 uppercase">${msg.user}</span>
-                    <div class="px-6 py-3 rounded-2xl text-sm ${isMe ? 'msg-me shadow-lg shadow-indigo-500/10' : 'msg-them'}">${msg.text}</div>
+                    <div class="px-6 py-3 rounded-2xl text-sm ${isMe ? 'msg-me shadow-lg' : 'msg-them'}">${msg.text}</div>
                 `;
                 container.appendChild(div);
             });
@@ -331,12 +347,58 @@
             const text = input.value.trim();
             if (!text) return;
             input.value = '';
+            await addDoc(getMessagesCol(), {
+                text, user: currentUser.displayName, uid: currentUser.uid, createdAt: serverTimestamp()
+            });
+        };
+
+        // --- SETTINGS LOGIC ---
+        const modal = document.getElementById('settings-modal');
+        document.getElementById('settings-btn').onclick = () => {
+            modal.classList.remove('hidden');
+            // Pre-fill current seeds if known
+            if (vaultConfig.seeds) {
+                document.getElementById('config-k1').value = vaultConfig.seeds[0];
+                document.getElementById('config-k2').value = vaultConfig.seeds[1];
+                document.getElementById('config-k3').value = vaultConfig.seeds[2];
+            }
+        };
+        document.getElementById('close-settings').onclick = () => modal.classList.add('hidden');
+
+        document.getElementById('save-config').onclick = async () => {
+            const newName = document.getElementById('config-hub-name').value.trim();
+            const newSeeds = [
+                document.getElementById('config-k1').value.trim(),
+                document.getElementById('config-k2').value.trim(),
+                document.getElementById('config-k3').value.trim()
+            ];
+
+            if (!newName || newSeeds.some(s => !s)) {
+                alert("All fields required.");
+                return;
+            }
+
             try {
-                await addDoc(getMessagesCol(), {
-                    text, user: currentUser.displayName || 'Admin', uid: currentUser.uid, createdAt: serverTimestamp()
-                });
-            } catch (err) {
-                log("Transmission error.");
+                const btn = document.getElementById('save-config');
+                btn.textContent = "Processing Rotation...";
+                btn.disabled = true;
+
+                // 1. Delete old key files if they changed
+                if (vaultConfig.seeds) {
+                    for (let oldSeed of vaultConfig.seeds) {
+                        if (!newSeeds.includes(oldSeed)) {
+                            await deleteDoc(getVaultDoc('keys', `key_part_${oldSeed}`));
+                        }
+                    }
+                }
+
+                // 2. Save new config and new key files
+                await saveNewConfig(newName, newSeeds);
+                
+                alert("Configuration Updated. Relogging required to apply new security protocols.");
+                location.reload();
+            } catch (e) {
+                alert("Update failed: " + e.message);
             }
         };
 
