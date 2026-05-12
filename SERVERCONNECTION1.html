@@ -24,6 +24,24 @@
 </head>
 <body class="bg-slate-950 h-screen flex flex-col font-sans text-slate-200 overflow-hidden">
 
+    <!-- LAYER 0: FIREBASE CONFIG SETUP (RUNTIME CONFIG) -->
+    <div id="config-runtime-layer" class="hidden fixed inset-0 z-[300] bg-slate-950 flex items-center justify-center p-4">
+        <div class="max-w-md w-full space-y-8 bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl">
+            <div class="text-center space-y-2">
+                <div class="bg-amber-500 w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl mb-4">
+                    <i class="fas fa-database"></i>
+                </div>
+                <h1 class="text-2xl font-black text-white tracking-tight">Database Connection</h1>
+                <p class="text-slate-400 text-sm">Paste your Firebase configuration JSON to begin.</p>
+            </div>
+            <div class="space-y-4">
+                <textarea id="runtime-config-input" rows="8" placeholder='{ "apiKey": "...", "authDomain": "...", "projectId": "...", ... }' class="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 font-mono text-xs text-indigo-400 outline-none focus:border-indigo-500 transition-colors"></textarea>
+                <button id="save-runtime-config" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/20">Initialize App</button>
+            </div>
+            <p class="text-[10px] text-slate-600 text-center uppercase tracking-widest font-bold">Stored locally in your browser</p>
+        </div>
+    </div>
+
     <!-- LOADING OVERLAY -->
     <div id="loading-layer" class="fixed inset-0 z-[200] bg-slate-950 flex flex-col items-center justify-center">
         <div class="loader w-12 h-12 border-4 border-slate-800 rounded-full mb-4"></div>
@@ -46,6 +64,7 @@
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
                     Continue with Google
                 </button>
+                <button id="reset-config-btn" class="text-slate-600 text-[10px] uppercase font-bold tracking-tighter hover:text-slate-400">Change Firebase Config</button>
             </div>
         </div>
     </div>
@@ -167,7 +186,7 @@
         import { getFirestore, doc, getDoc, setDoc, collection, addDoc, query, onSnapshot, serverTimestamp, orderBy, limit, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         let db, auth, currentUser, vaultConfig;
-        let currentKeySeeds = []; // Track keys to delete old ones during rotation
+        let currentKeySeeds = []; 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'google-secure-hub';
         const debugEl = document.getElementById('loading-debug');
         
@@ -175,6 +194,78 @@
             console.log(`[Bridge]: ${msg}`);
             if (debugEl) debugEl.textContent = msg;
         };
+
+        const showLayer = (id) => {
+            ['loading-layer', 'auth-layer', 'setup-layer', 'lock-layer', 'chat-app', 'config-runtime-layer'].forEach(l => {
+                const el = document.getElementById(l);
+                if (el) el.classList.add('hidden');
+            });
+            const target = document.getElementById(id);
+            if (target) target.classList.remove('hidden');
+        };
+
+        // --- RUNTIME CONFIGURATION HANDLER ---
+        const LOCAL_STORAGE_KEY = `firebase_config_${appId}`;
+        
+        function getSavedConfig() {
+            // First check if environment provided it
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                try { return JSON.parse(__firebase_config); } catch(e) {}
+            }
+            // Otherwise check localStorage
+            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+            return saved ? JSON.parse(saved) : null;
+        }
+
+        document.getElementById('save-runtime-config').onclick = () => {
+            const input = document.getElementById('runtime-config-input').value.trim();
+            try {
+                const parsed = JSON.parse(input);
+                if (!parsed.apiKey || !parsed.projectId) throw new Error("Invalid Config Format");
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+                location.reload();
+            } catch (e) {
+                alert("Error: Please provide a valid Firebase Configuration JSON object.");
+            }
+        };
+
+        document.getElementById('reset-config-btn').onclick = () => {
+            if (confirm("Reset connection configuration?")) {
+                localStorage.removeItem(LOCAL_STORAGE_KEY);
+                location.reload();
+            }
+        };
+
+        // --- AUTH & STARTUP ---
+        async function start() {
+            log("Initializing Core...");
+            
+            const config = getSavedConfig();
+            if (!config) {
+                showLayer('config-runtime-layer');
+                return;
+            }
+
+            try {
+                const app = initializeApp(config);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                await getRedirectResult(auth);
+                
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        currentUser = user;
+                        await checkVaultStatus();
+                    } else {
+                        showLayer('auth-layer');
+                    }
+                });
+            } catch (err) {
+                log("Fail: " + err.message);
+                showLayer('config-runtime-layer');
+            }
+        }
 
         const generateKeyBlob = (seed) => {
             let blob = `[SECURE_KEY_PART_v2.0]\nSEED_REF: ${seed}\nTIMESTAMP: ${Date.now()}\n----------------------------------\n`;
@@ -188,37 +279,6 @@
 
         const getVaultDoc = (col, docId) => doc(db, 'artifacts', appId, 'public', 'data', col, docId);
         const getMessagesCol = () => collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-
-        const showLayer = (id) => {
-            ['loading-layer', 'auth-layer', 'setup-layer', 'lock-layer', 'chat-app'].forEach(l => {
-                document.getElementById(l).classList.add('hidden');
-            });
-            document.getElementById(id).classList.remove('hidden');
-        };
-
-        // --- AUTH & STARTUP ---
-        async function start() {
-            log("Initializing Core...");
-            try {
-                const firebaseConfig = JSON.parse(__firebase_config);
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-
-                const result = await getRedirectResult(auth);
-                
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        currentUser = user;
-                        await checkVaultStatus();
-                    } else {
-                        showLayer('auth-layer');
-                    }
-                });
-            } catch (err) {
-                log("Fail: " + err.message);
-            }
-        }
 
         document.getElementById('google-login-btn').onclick = async () => {
             const provider = new GoogleAuthProvider();
@@ -245,10 +305,8 @@
                         return;
                     }
                     
-                    // Update UI with hub name
                     document.getElementById('hub-display-name').textContent = vaultConfig.hubName || "Master Hub";
                     document.getElementById('config-hub-name').value = vaultConfig.hubName || "Master Hub";
-                    
                     document.getElementById('lock-avatar').src = currentUser.photoURL || '';
                     document.getElementById('lock-user-name').textContent = (currentUser.displayName || 'Master').split(' ')[0];
                     showLayer('lock-layer');
@@ -277,7 +335,7 @@
                 ownerName: currentUser.displayName,
                 ownerPhoto: currentUser.photoURL,
                 hubName: hubName,
-                seeds: seeds, // Store seeds reference to know which docs to delete later
+                seeds: seeds, 
                 initialized: true 
             });
 
@@ -356,7 +414,6 @@
         const modal = document.getElementById('settings-modal');
         document.getElementById('settings-btn').onclick = () => {
             modal.classList.remove('hidden');
-            // Pre-fill current seeds if known
             if (vaultConfig.seeds) {
                 document.getElementById('config-k1').value = vaultConfig.seeds[0];
                 document.getElementById('config-k2').value = vaultConfig.seeds[1];
@@ -383,7 +440,6 @@
                 btn.textContent = "Processing Rotation...";
                 btn.disabled = true;
 
-                // 1. Delete old key files if they changed
                 if (vaultConfig.seeds) {
                     for (let oldSeed of vaultConfig.seeds) {
                         if (!newSeeds.includes(oldSeed)) {
@@ -392,10 +448,8 @@
                     }
                 }
 
-                // 2. Save new config and new key files
                 await saveNewConfig(newName, newSeeds);
-                
-                alert("Configuration Updated. Relogging required to apply new security protocols.");
+                alert("Configuration Updated. Relogging required.");
                 location.reload();
             } catch (e) {
                 alert("Update failed: " + e.message);
