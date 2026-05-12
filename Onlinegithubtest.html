@@ -14,6 +14,8 @@
         #messages-container { scroll-behavior: smooth; }
         .msg-me { background-color: #4f46e5; color: white; border-bottom-right-radius: 0; }
         .msg-them { background-color: white; color: #1e293b; border-bottom-left-radius: 0; border: 1px solid #e2e8f0; }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-slate-100 h-screen flex flex-col font-sans">
@@ -38,11 +40,13 @@
                 />
                 <button
                     type="submit"
-                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl shadow-md transition-all active:scale-95"
+                    id="join-btn"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
-                    Join Chat
+                    <span>Join Chat</span>
                 </button>
             </form>
+            <div id="status-msg" class="mt-4 text-xs font-medium text-amber-600">Initializing connection...</div>
         </div>
     </div>
 
@@ -63,7 +67,7 @@
         <main id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-white/50 scrollbar-thin">
             <div id="empty-state" class="flex flex-col items-center justify-center h-full text-slate-400 opacity-50">
                 <i class="far fa-comment-dots text-4xl mb-2"></i>
-                <p>Connecting to backend...</p>
+                <p>Loading messages...</p>
             </div>
         </main>
 
@@ -88,16 +92,29 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- CONFIGURATION ---
-        // On GitHub Pages, you need to replace this with your actual Firebase config object
-        // from the Firebase Console (Settings > Project Settings).
+        const statusMsg = document.getElementById('status-msg');
+        const joinBtn = document.getElementById('join-btn');
+
         let firebaseConfig;
+        let isConfigured = false;
+
+        // Try to get config from environment, otherwise prompt for setup
         try {
-            firebaseConfig = JSON.parse(__firebase_config);
+            if (typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
+                isConfigured = true;
+                statusMsg.textContent = "Ready to join";
+                statusMsg.className = "mt-4 text-xs font-medium text-green-600";
+            } else {
+                throw new Error("No config");
+            }
         } catch (e) {
-            // FALLBACK: Replace the {} below with your Firebase Config if running on your own domain
+            statusMsg.textContent = "⚠️ Firebase Config Missing! Edit the file to add your API Key.";
+            statusMsg.className = "mt-4 text-xs font-medium text-red-600";
+            
+            // DEFAULT PLACEHOLDER - Users must replace this on GitHub
             firebaseConfig = {
-                apiKey: "YOUR_API_KEY",
+                apiKey: "REPLACE_WITH_YOUR_KEY",
                 authDomain: "YOUR_PROJECT.firebaseapp.com",
                 projectId: "YOUR_PROJECT_ID",
                 storageBucket: "YOUR_PROJECT.appspot.com",
@@ -108,9 +125,12 @@
 
         const appIdentifier = typeof __app_id !== 'undefined' ? __app_id : 'github-live-chat';
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        let app, auth, db;
+        if (isConfigured || firebaseConfig.apiKey !== "REPLACE_WITH_YOUR_KEY") {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        }
 
         let currentUser = null;
         let displayName = localStorage.getItem('chat_username') || '';
@@ -128,13 +148,24 @@
         };
 
         async function initAuth() {
+            if (!auth) return;
             try {
+                joinBtn.disabled = true;
+                joinBtn.innerHTML = '<div class="loading-spinner"></div> Connecting...';
+                
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
-            } catch (err) { console.error("Auth error:", err); }
+            } catch (err) { 
+                console.error("Auth error:", err); 
+                statusMsg.textContent = "Connection Error: " + err.message;
+                statusMsg.className = "mt-4 text-xs font-medium text-red-600";
+            } finally {
+                joinBtn.disabled = false;
+                joinBtn.innerHTML = 'Join Chat';
+            }
         }
 
         onAuthStateChanged(auth, (user) => {
@@ -150,15 +181,15 @@
 
         let unsubscribe = null;
         function startListening() {
+            if (!db) return;
             if (unsubscribe) unsubscribe();
-            // This path ensures your messages are saved correctly in the shared cloud DB
             const q = query(collection(db, 'artifacts', appIdentifier, 'public', 'data', 'messages'));
             unsubscribe = onSnapshot(q, (snap) => {
                 const msgs = snap.docs.map(d => ({id: d.id, ...d.data()}))
                     .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
                 render(msgs);
             }, (err) => {
-                console.error("Firestore error. Ensure your Security Rules allow access to the artifacts path.");
+                console.error("Firestore error:", err);
             });
         }
 
@@ -170,11 +201,11 @@
                 return;
             }
             msgs.forEach(msg => {
-                const isMe = msg.userId === currentUser.uid;
+                const isMe = msg.userId === currentUser?.uid;
                 const div = document.createElement('div');
                 div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
                 div.innerHTML = `
-                    ${!isMe ? `<span class="text-[10px] font-bold text-slate-400 ml-1 mb-1">${msg.sender}</span>` : ''}
+                    ${!isMe ? `<span class="text-[10px] font-bold text-slate-400 ml-1 mb-1">${msg.sender || 'Anonymous'}</span>` : ''}
                     <div class="px-4 py-2 rounded-2xl text-sm ${isMe ? 'msg-me' : 'msg-them'}">${escape(msg.text)}</div>
                 `;
                 elements.container.appendChild(div);
@@ -184,24 +215,36 @@
 
         function escape(s) { const t = document.createElement('p'); t.textContent = s || ""; return t.innerHTML; }
 
-        elements.joinForm.addEventListener('submit', (e) => {
+        elements.joinForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const name = elements.userInput.value.trim();
-            if (name) {
-                displayName = name;
-                localStorage.setItem('chat_username', name);
-                if (currentUser) showChat(); else initAuth();
+            if (!name) return;
+            
+            if (!isConfigured && firebaseConfig.apiKey === "REPLACE_WITH_YOUR_KEY") {
+                statusMsg.textContent = "Cannot join: Firebase not configured in code.";
+                return;
+            }
+
+            displayName = name;
+            localStorage.setItem('chat_username', name);
+            
+            if (currentUser) {
+                showChat();
+            } else {
+                await initAuth();
             }
         });
 
         elements.chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = elements.msgInput.value.trim();
-            if (!text || !currentUser) return;
+            if (!text || !currentUser || !db) return;
             elements.msgInput.value = '';
-            await addDoc(collection(db, 'artifacts', appIdentifier, 'public', 'data', 'messages'), {
-                text, sender: displayName, userId: currentUser.uid, createdAt: serverTimestamp()
-            });
+            try {
+                await addDoc(collection(db, 'artifacts', appIdentifier, 'public', 'data', 'messages'), {
+                    text, sender: displayName, userId: currentUser.uid, createdAt: serverTimestamp()
+                });
+            } catch (err) { console.error("Send failed:", err); }
         });
 
         elements.logout.onclick = () => {
@@ -209,7 +252,7 @@
             location.reload();
         };
 
-        initAuth();
+        if (isConfigured) initAuth();
     </script>
 </body>
 </html>
