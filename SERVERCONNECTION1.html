@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bridge-OS | Logic Shell</title>
-    <!-- Stable Tailwind CSS via standard Link tag (Zero Console Warnings) -->
+    <!-- Stable Tailwind CSS via standard Link tag -->
     <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -59,9 +59,27 @@
             border-color: var(--accent-color);
             box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
         }
+
+        /* Custom Modal for alerts since browser alerts are disabled */
+        #custom-alert {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 500;
+            background: #22c55e;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: bold;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body class="h-screen overflow-hidden flex flex-col">
+
+    <div id="custom-alert" class="mono text-xs uppercase tracking-widest"></div>
 
     <!-- SETUP LAYER -->
     <div id="setup-layer" class="fixed inset-0 z-[300] bg-slate-950 flex items-center justify-center p-4">
@@ -150,23 +168,49 @@
     </div>
 
     <script type="module">
-        // Using stable version 11.6.1 (Version 12.x does not exist)
+        // Fixed Version (11.6.1) to ensure the script actually works
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         let db;
         let keysLoaded = { 1: false, 2: false, 3: false };
 
-        document.getElementById('init-system-btn').onclick = () => {
+        function showMessage(text, isError = false) {
+            const el = document.getElementById('custom-alert');
+            el.textContent = text;
+            el.style.backgroundColor = isError ? '#ef4444' : '#22c55e';
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 5000);
+        }
+
+        // INTEGRATED FORCE SCRIPT
+        async function saveData(databaseInstance) {
+            try {
+                // As per user script: create folder 'Users' and put name inside
+                await addDoc(collection(databaseInstance, "Users"), {
+                    name: "Test User",
+                    message: "It finally works!"
+                });
+                showMessage("Success: Check your Firebase screen now!");
+            } catch (e) {
+                showMessage("Error: " + e.message, true);
+            }
+        }
+
+        document.getElementById('init-system-btn').onclick = async () => {
             const configText = document.getElementById('config-input').value;
             try {
                 const config = JSON.parse(configText);
                 const app = initializeApp(config);
                 db = getFirestore(app);
+                
+                // Trigger your force script immediately
+                await saveData(db);
+
                 document.getElementById('setup-layer').classList.add('hidden');
                 document.getElementById('lock-layer').classList.remove('hidden');
             } catch (e) {
-                alert("Invalid Firebase Configuration JSON.");
+                showMessage("Invalid Firebase Configuration JSON.", true);
             }
         };
 
