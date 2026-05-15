@@ -3,462 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Google Master Bridge</title>
+    <title>Bridge-OS | File-Key Vault</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        #messages-container { scroll-behavior: smooth; }
-        .msg-me { background-color: #4f46e5; color: white; border-bottom-right-radius: 0; }
-        .msg-them { background-color: white; color: #1e293b; border-bottom-left-radius: 0; border: 1px solid #e2e8f0; }
-        .key-input { letter-spacing: 0.5em; text-align: center; font-family: monospace; }
-        .loader { border-top-color: #4f46e5; animation: spinner 1.5s linear infinite; }
-        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .grid-bg { background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 30px 30px; }
         
-        /* Modal Animation */
-        .modal-enter { opacity: 0; transform: scale(0.95); }
-        .modal-active { opacity: 1; transform: scale(1); transition: all 0.2s ease-out; }
+        .file-slot {
+            border: 2px dashed #334155;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .file-slot.active {
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .file-slot.loaded {
+            border-style: solid;
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.05);
+        }
+        
+        .status-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     </style>
 </head>
-<body class="bg-slate-950 h-screen flex flex-col font-sans text-slate-200 overflow-hidden">
+<body class="bg-slate-950 text-slate-300 h-screen overflow-hidden flex flex-col">
 
-    <!-- LAYER 0: FIREBASE CONFIG SETUP (RUNTIME CONFIG) -->
-    <div id="config-runtime-layer" class="hidden fixed inset-0 z-[300] bg-slate-950 flex items-center justify-center p-4">
-        <div class="max-w-md w-full space-y-8 bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl">
-            <div class="text-center space-y-2">
-                <div class="bg-amber-500 w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl mb-4">
-                    <i class="fas fa-database"></i>
-                </div>
-                <h1 class="text-2xl font-black text-white tracking-tight">Database Connection</h1>
-                <p class="text-slate-400 text-sm">Paste your Firebase configuration JSON to begin.</p>
-            </div>
-            <div class="space-y-4">
-                <textarea id="runtime-config-input" rows="8" placeholder='{ "apiKey": "...", "authDomain": "...", "projectId": "...", ... }' class="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 font-mono text-xs text-indigo-400 outline-none focus:border-indigo-500 transition-colors"></textarea>
-                <button id="save-runtime-config" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/20">Initialize App</button>
-            </div>
-            <p class="text-[10px] text-slate-600 text-center uppercase tracking-widest font-bold">Stored locally in your browser</p>
-        </div>
-    </div>
-
-    <!-- LOADING OVERLAY -->
-    <div id="loading-layer" class="fixed inset-0 z-[200] bg-slate-950 flex flex-col items-center justify-center">
-        <div class="loader w-12 h-12 border-4 border-slate-800 rounded-full mb-4"></div>
-        <p class="text-slate-500 text-sm font-medium tracking-widest uppercase">Securing Connection</p>
-        <p id="loading-debug" class="text-[10px] text-slate-700 mt-4 font-mono uppercase"></p>
-    </div>
-
-    <!-- LAYER 1: AUTHENTICATION -->
-    <div id="auth-layer" class="hidden fixed inset-0 z-[150] bg-slate-950 flex items-center justify-center p-4">
+    <!-- LAYER 1: GOOGLE HANDSHAKE -->
+    <div id="auth-layer" class="fixed inset-0 z-[200] bg-slate-950 flex items-center justify-center p-4">
         <div class="max-w-md w-full text-center space-y-8">
-            <div class="bg-indigo-600 w-20 h-20 rounded-3xl mx-auto flex items-center justify-center text-white text-3xl shadow-2xl shadow-indigo-500/20 rotate-3">
-                <i class="fab fa-google"></i>
-            </div>
-            <div class="space-y-2">
-                <h1 class="text-3xl font-black text-white tracking-tight">Identity Required</h1>
-                <p class="text-slate-500">Sign in with Google to verify ownership status.</p>
-            </div>
-            <div class="space-y-4">
-                <button id="google-login-btn" class="w-full bg-white text-black font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-100 transition-all active:scale-95 shadow-xl">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
-                    Continue with Google
-                </button>
-                <button id="reset-config-btn" class="text-slate-600 text-[10px] uppercase font-bold tracking-tighter hover:text-slate-400">Change Firebase Config</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- LAYER 2: FIRST-TIME SETUP -->
-    <div id="setup-layer" class="hidden fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4">
-        <div class="max-w-md w-full bg-slate-800 rounded-3xl shadow-2xl p-8 border border-slate-700">
-            <h2 class="text-2xl font-black text-white mb-2">Vault Initialization</h2>
-            <p class="text-slate-400 text-sm mb-6">You are the first user. Your Google account will be permanently linked as the Master.</p>
-            <form id="init-form" class="space-y-6">
-                <div class="p-4 bg-slate-900 rounded-xl border border-slate-700 flex items-center gap-3">
-                    <img id="setup-avatar" class="w-10 h-10 rounded-full bg-slate-800" src="">
-                    <div>
-                        <p id="setup-name" class="text-sm font-bold text-white"></p>
-                        <p id="setup-email" class="text-xs text-slate-500"></p>
-                    </div>
-                </div>
-                <div class="space-y-3">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Generate 3 High-Bit Keyfiles</label>
-                    <div class="grid grid-cols-1 gap-3">
-                        <input type="text" placeholder="FILE SEED 1" id="k1" class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center font-mono focus:border-indigo-500 outline-none text-white" required>
-                        <input type="text" placeholder="FILE SEED 2" id="k2" class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center font-mono focus:border-indigo-500 outline-none text-white" required>
-                        <input type="text" placeholder="FILE SEED 3" id="k3" class="bg-slate-900 border border-slate-700 p-4 rounded-xl text-center font-mono focus:border-indigo-500 outline-none text-white" required>
-                    </div>
-                </div>
-                <button type="submit" class="w-full bg-indigo-600 p-4 rounded-xl font-bold hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20">Seal & Lock Vault</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- LAYER 3: LOCKED SCREEN -->
-    <div id="lock-layer" class="hidden fixed inset-0 z-[90] bg-slate-950 flex items-center justify-center p-4">
-        <div class="text-center space-y-6 max-w-sm w-full">
-            <div class="relative">
-                <img id="lock-avatar" class="w-20 h-20 rounded-full border-4 border-slate-800 mx-auto mb-4" src="">
-                <div class="absolute bottom-4 right-[calc(50%-40px)] w-8 h-8 bg-red-500 rounded-full flex items-center justify-center border-4 border-slate-950 text-[10px]">
-                    <i class="fas fa-lock"></i>
-                </div>
+            <div class="bg-indigo-600 w-20 h-20 rounded-3xl mx-auto flex items-center justify-center text-white text-3xl shadow-2xl">
+                <i class="fas fa-shield-halved"></i>
             </div>
             <div>
-                <h1 class="text-2xl font-bold text-white">Hello, <span id="lock-user-name"></span></h1>
-                <p class="text-slate-500 text-sm">Owner identity confirmed. Provide key seeds.</p>
+                <h1 class="text-3xl font-black text-white tracking-tight">Access Protocol</h1>
+                <p class="text-slate-500 mt-2 uppercase text-[10px] font-bold tracking-widest">Step 1: Identity Verification</p>
             </div>
-            <div class="space-y-3">
-                <input type="password" id="unlock-k1" placeholder="Seed A" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl key-input outline-none focus:border-indigo-500 text-white">
-                <input type="password" id="unlock-k2" placeholder="Seed B" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl key-input outline-none focus:border-indigo-500 text-white">
-                <input type="password" id="unlock-k3" placeholder="Seed C" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl key-input outline-none focus:border-indigo-500 text-white">
-            </div>
-            <button id="unlock-btn" class="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-500/10">Reconstruct Vault</button>
-            <p id="lock-status" class="text-xs text-red-400 font-medium h-4"></p>
-            <button onclick="location.reload()" class="text-slate-600 text-xs hover:text-slate-400">Switch Account</button>
+            <button id="google-login-btn" class="w-full bg-white text-black font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-100 transition-all">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
+                Verify via Google
+            </button>
         </div>
     </div>
 
-    <!-- LAYER 4: MAIN APP -->
-    <div id="chat-app" class="hidden flex flex-col h-screen max-w-5xl mx-auto w-full bg-white shadow-2xl overflow-hidden text-slate-900">
-        <header class="bg-white border-b border-slate-100 px-8 py-6 flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <img id="app-avatar" class="w-10 h-10 rounded-xl shadow-md" src="">
-                <div>
-                    <h2 id="hub-display-name" class="font-black text-slate-900 text-lg tracking-tight">Master Hub</h2>
-                    <p id="owner-tag" class="text-[10px] text-green-500 uppercase font-bold tracking-widest">Admin Secured</p>
-                </div>
+    <!-- LAYER 2: TRIPLE FILE-KEY VAULT -->
+    <div id="lock-layer" class="hidden fixed inset-0 z-[150] bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div class="max-w-2xl w-full text-center space-y-8">
+            <div class="space-y-2">
+                <h2 class="text-2xl font-black text-white uppercase tracking-tighter">Insert Physical Keyfiles</h2>
+                <p class="text-[10px] text-slate-500 uppercase tracking-widest">Step 2: Triple-Extension Decryption Required</p>
             </div>
-            <div class="flex gap-4">
-                <button id="settings-btn" class="text-slate-400 hover:text-indigo-600 transition-all text-xl"><i class="fas fa-cog"></i></button>
-                <button id="logout-btn" class="text-slate-300 hover:text-red-500 transition-all text-xl"><i class="fas fa-power-off"></i></button>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Key 1 -->
+                <label for="key-1" id="slot-1" class="file-slot p-8 rounded-2xl flex flex-col items-center gap-4">
+                    <input type="file" id="key-1" class="hidden">
+                    <i class="fas fa-file-code text-2xl text-slate-600 icon"></i>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 name">ALPHA.key</span>
+                </label>
+                <!-- Key 2 -->
+                <label for="key-2" id="slot-2" class="file-slot p-8 rounded-2xl flex flex-col items-center gap-4">
+                    <input type="file" id="key-2" class="hidden">
+                    <i class="fas fa-file-contract text-2xl text-slate-600 icon"></i>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 name">BETA.sig</span>
+                </label>
+                <!-- Key 3 -->
+                <label for="key-3" id="slot-3" class="file-slot p-8 rounded-2xl flex flex-col items-center gap-4">
+                    <input type="file" id="key-3" class="hidden">
+                    <i class="fas fa-file-export text-2xl text-slate-600 icon"></i>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 name">GAMMA.vault</span>
+                </label>
             </div>
-        </header>
 
-        <main id="messages-container" class="flex-1 overflow-y-auto p-8 space-y-6 bg-slate-50/50 scrollbar-thin"></main>
-
-        <footer class="p-6 bg-white border-t border-slate-100">
-            <form id="chat-form" action="javascript:void(0);" class="flex gap-3">
-                <input type="text" id="message-input" placeholder="Broadcast to network..." class="flex-1 bg-slate-100 border-none rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 ring-indigo-500/20">
-                <button type="submit" class="bg-indigo-600 text-white w-14 h-14 rounded-2xl shadow-lg hover:bg-indigo-700 flex items-center justify-center text-xl">
-                    <i class="fas fa-paper-plane"></i>
+            <div class="pt-4">
+                <button id="decrypt-btn" disabled class="px-12 py-4 bg-slate-800 text-slate-500 font-black rounded-xl transition-all uppercase text-xs tracking-widest cursor-not-allowed">
+                    System Locked
                 </button>
-            </form>
-        </footer>
-    </div>
-
-    <!-- SETTINGS MODAL -->
-    <div id="settings-modal" class="hidden fixed inset-0 z-[250] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="max-w-lg w-full bg-white rounded-3xl shadow-2xl overflow-hidden text-slate-900 transform transition-all">
-            <div class="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <h3 class="text-xl font-black tracking-tight">Hub Configuration</h3>
-                <button id="close-settings" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
-            </div>
-            <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-thin">
-                <!-- App Branding -->
-                <div class="space-y-4">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Public Branding</label>
-                    <input type="text" id="config-hub-name" placeholder="Hub Display Name" class="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl outline-none focus:border-indigo-500">
-                </div>
-
-                <!-- Key Rotation -->
-                <div class="space-y-4 pt-4 border-t border-slate-100">
-                    <div class="flex justify-between items-end">
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Key Rotation</label>
-                        <span class="text-[9px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded font-bold">WARNING: REPLACES OLD KEYS</span>
-                    </div>
-                    <div class="grid grid-cols-1 gap-3">
-                        <input type="text" id="config-k1" placeholder="New Seed A" class="bg-slate-50 border border-slate-200 p-4 rounded-xl font-mono text-sm outline-none focus:border-indigo-500">
-                        <input type="text" id="config-k2" placeholder="New Seed B" class="bg-slate-50 border border-slate-200 p-4 rounded-xl font-mono text-sm outline-none focus:border-indigo-500">
-                        <input type="text" id="config-k3" placeholder="New Seed C" class="bg-slate-50 border border-slate-200 p-4 rounded-xl font-mono text-sm outline-none focus:border-indigo-500">
-                    </div>
-                </div>
-            </div>
-            <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4">
-                <button id="save-config" class="flex-1 bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">Commit Changes</button>
+                <p id="lock-status" class="mt-4 text-[10px] text-indigo-500 font-bold uppercase h-4 tracking-widest"></p>
             </div>
         </div>
+    </div>
+
+    <!-- LAYER 3: THE CONNECTION HUB -->
+    <div id="hub-app" class="hidden flex h-screen bg-slate-950">
+        <aside class="w-64 border-r border-slate-800 flex flex-col bg-slate-900/50 backdrop-blur-xl">
+            <div class="p-6">
+                <div class="flex items-center gap-3 mb-8">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white"><i class="fas fa-network-wired"></i></div>
+                    <h1 class="font-black text-white tracking-tighter text-xl">HUB-V3</h1>
+                </div>
+                <nav class="space-y-1">
+                    <a href="#" class="flex items-center gap-3 px-4 py-3 bg-indigo-600/10 text-indigo-400 rounded-xl border border-indigo-600/20 text-xs font-bold">
+                        <i class="fas fa-terminal"></i> Relay Monitor
+                    </a>
+                </nav>
+            </div>
+            <div class="mt-auto p-6 border-t border-slate-800 flex flex-col gap-2">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="w-2 h-2 rounded-full bg-green-500 status-pulse"></div>
+                    <span class="text-[9px] text-slate-500 uppercase font-black">Secure Link Active</span>
+                </div>
+                <button id="logout-btn" class="text-[10px] font-black text-slate-600 hover:text-red-500 uppercase tracking-widest transition-all">Emergency Shutdown</button>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col grid-bg">
+            <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-950/80 backdrop-blur-md">
+                <div class="flex items-center gap-4">
+                    <div class="flex flex-col">
+                        <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Project UID</span>
+                        <span class="text-white font-bold text-xs mono">project-89031660...76</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <p id="hub-user-name" class="text-xs font-bold text-white"></p>
+                        <p class="text-[8px] text-indigo-400 mono font-bold uppercase tracking-widest">Authenticated Admin</p>
+                    </div>
+                    <img id="hub-avatar" class="w-8 h-8 rounded-lg border border-slate-700" src="">
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-hidden p-8">
+                <div id="messages-container" class="h-full overflow-y-auto space-y-3 scrollbar-thin pr-4">
+                    <!-- DATA PACKETS LOAD HERE -->
+                </div>
+            </div>
+        </main>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, addDoc, query, onSnapshot, serverTimestamp, orderBy, limit, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        let db, auth, currentUser, vaultConfig;
-        let currentKeySeeds = []; 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'google-secure-hub';
-        const debugEl = document.getElementById('loading-debug');
+        const firebaseConfig = {
+            apiKey: "AIzaSyAzkbPwgoQxjInKQKy920DS1DqGbp4JGCc",
+            authDomain: "project-8903166040563241276.firebaseapp.com",
+            projectId: "project-8903166040563241276",
+            storageBucket: "project-8903166040563241276.firebasestorage.app",
+            messagingSenderId: "339987579353",
+            appId: "1:339987579353:web:fa44b45bc6e7e43e3a59c8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
         
-        const log = (msg) => {
-            console.log(`[Bridge]: ${msg}`);
-            if (debugEl) debugEl.textContent = msg;
-        };
+        let currentUser = null;
+        let keysLoaded = { 1: false, 2: false, 3: false };
 
-        const showLayer = (id) => {
-            ['loading-layer', 'auth-layer', 'setup-layer', 'lock-layer', 'chat-app', 'config-runtime-layer'].forEach(l => {
-                const el = document.getElementById(l);
-                if (el) el.classList.add('hidden');
-            });
-            const target = document.getElementById(id);
-            if (target) target.classList.remove('hidden');
-        };
-
-        // --- RUNTIME CONFIGURATION HANDLER ---
-        const LOCAL_STORAGE_KEY = `firebase_config_${appId}`;
-        
-        function getSavedConfig() {
-            // First check if environment provided it
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                try { return JSON.parse(__firebase_config); } catch(e) {}
+        // 1. IDENTITY WATCHER
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('hub-avatar').src = user.photoURL;
+                document.getElementById('hub-user-name').textContent = user.displayName;
+                document.getElementById('auth-layer').classList.add('hidden');
+                document.getElementById('lock-layer').classList.remove('hidden');
+            } else {
+                document.getElementById('auth-layer').classList.remove('hidden');
             }
-            // Otherwise check localStorage
-            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-            return saved ? JSON.parse(saved) : null;
-        }
+        });
 
-        document.getElementById('save-runtime-config').onclick = () => {
-            const input = document.getElementById('runtime-config-input').value.trim();
-            try {
-                const parsed = JSON.parse(input);
-                if (!parsed.apiKey || !parsed.projectId) throw new Error("Invalid Config Format");
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
-                location.reload();
-            } catch (e) {
-                alert("Error: Please provide a valid Firebase Configuration JSON object.");
-            }
-        };
-
-        document.getElementById('reset-config-btn').onclick = () => {
-            if (confirm("Reset connection configuration?")) {
-                localStorage.removeItem(LOCAL_STORAGE_KEY);
-                location.reload();
-            }
-        };
-
-        // --- AUTH & STARTUP ---
-        async function start() {
-            log("Initializing Core...");
-            
-            const config = getSavedConfig();
-            if (!config) {
-                showLayer('config-runtime-layer');
-                return;
-            }
-
-            try {
-                const app = initializeApp(config);
-                auth = getAuth(app);
-                db = getFirestore(app);
-
-                await getRedirectResult(auth);
-                
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        currentUser = user;
-                        await checkVaultStatus();
-                    } else {
-                        showLayer('auth-layer');
-                    }
-                });
-            } catch (err) {
-                log("Fail: " + err.message);
-                showLayer('config-runtime-layer');
-            }
-        }
-
-        const generateKeyBlob = (seed) => {
-            let blob = `[SECURE_KEY_PART_v2.0]\nSEED_REF: ${seed}\nTIMESTAMP: ${Date.now()}\n----------------------------------\n`;
-            const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
-            for (let i = 0; i < 1100; i++) {
-                blob += charset.charAt(Math.floor(Math.random() * charset.length));
-                if (i % 64 === 0 && i > 0) blob += "\n";
-            }
-            return blob;
-        };
-
-        const getVaultDoc = (col, docId) => doc(db, 'artifacts', appId, 'public', 'data', col, docId);
-        const getMessagesCol = () => collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-
-        document.getElementById('google-login-btn').onclick = async () => {
-            const provider = new GoogleAuthProvider();
-            try { await signInWithPopup(auth, provider); } 
-            catch (e) { await signInWithRedirect(auth, provider); }
-        };
-
-        async function checkVaultStatus() {
-            log("Syncing Metadata...");
-            try {
-                const metaRef = getVaultDoc('config', 'vault_metadata');
-                const metaSnap = await getDoc(metaRef);
-
-                if (!metaSnap.exists()) {
-                    showLayer('setup-layer');
-                    document.getElementById('setup-avatar').src = currentUser.photoURL || '';
-                    document.getElementById('setup-name').textContent = currentUser.displayName || 'Master';
-                    document.getElementById('setup-email').textContent = currentUser.email;
-                } else {
-                    vaultConfig = metaSnap.data();
-                    if (vaultConfig.ownerUid !== currentUser.uid) {
-                        alert("UNAUTHORIZED ACCESS DENIED");
-                        await signOut(auth);
-                        return;
-                    }
-                    
-                    document.getElementById('hub-display-name').textContent = vaultConfig.hubName || "Master Hub";
-                    document.getElementById('config-hub-name').value = vaultConfig.hubName || "Master Hub";
-                    document.getElementById('lock-avatar').src = currentUser.photoURL || '';
-                    document.getElementById('lock-user-name').textContent = (currentUser.displayName || 'Master').split(' ')[0];
-                    showLayer('lock-layer');
-                }
-            } catch (e) { log("DB Error: " + e.message); }
-        }
-
-        // --- SETUP ---
-        document.getElementById('init-form').onsubmit = async (e) => {
-            e.preventDefault();
-            const seeds = [
-                document.getElementById('k1').value.trim(),
-                document.getElementById('k2').value.trim(),
-                document.getElementById('k3').value.trim()
-            ];
-            await saveNewConfig("Master Hub", seeds);
-            alert("Vault Sealed.");
-            location.reload();
-        };
-
-        async function saveNewConfig(hubName, seeds) {
-            const metaRef = getVaultDoc('config', 'vault_metadata');
-            await setDoc(metaRef, { 
-                ownerEmail: currentUser.email, 
-                ownerUid: currentUser.uid,
-                ownerName: currentUser.displayName,
-                ownerPhoto: currentUser.photoURL,
-                hubName: hubName,
-                seeds: seeds, 
-                initialized: true 
-            });
-
-            for (let i = 0; i < 3; i++) {
-                const keyRef = getVaultDoc('keys', `key_part_${seeds[i]}`);
-                await setDoc(keyRef, { 
-                    content: generateKeyBlob(seeds[i]), 
-                    part: i, 
-                    createdAt: serverTimestamp() 
-                });
-            }
-        }
-
-        // --- UNLOCK ---
-        document.getElementById('unlock-btn').onclick = async () => {
-            const seeds = [
-                document.getElementById('unlock-k1').value.trim(),
-                document.getElementById('unlock-k2').value.trim(),
-                document.getElementById('unlock-k3').value.trim()
-            ];
-            const status = document.getElementById('lock-status');
-            status.textContent = "Verifying keys...";
-
-            try {
-                const results = await Promise.all(seeds.map(s => getDoc(getVaultDoc('keys', `key_part_${s}`))));
-                if (results.every(snap => snap.exists())) {
-                    currentKeySeeds = seeds;
-                    launchApp();
-                } else {
-                    status.textContent = "AUTH FAILURE";
-                }
-            } catch (e) { status.textContent = "Error accessing vault."; }
-        };
-
-        // --- CHAT LOGIC ---
-        function launchApp() {
-            showLayer('chat-app');
-            document.getElementById('app-avatar').src = currentUser.photoURL || '';
-            const q = getMessagesCol();
-            onSnapshot(q, (snap) => {
-                const msgs = [];
-                snap.forEach(d => msgs.push(d.data()));
-                msgs.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-                renderMessages(msgs);
-            });
-        }
-
-        function renderMessages(msgs) {
-            const container = document.getElementById('messages-container');
-            container.innerHTML = msgs.length === 0 ? '<div class="text-center py-20 text-slate-300 italic">No traffic.</div>' : '';
-            msgs.forEach(msg => {
-                const isMe = msg.uid === currentUser.uid;
-                const div = document.createElement('div');
-                div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
-                div.innerHTML = `
-                    <span class="text-[10px] font-bold text-slate-400 mb-1 uppercase">${msg.user}</span>
-                    <div class="px-6 py-3 rounded-2xl text-sm ${isMe ? 'msg-me shadow-lg' : 'msg-them'}">${msg.text}</div>
-                `;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-        }
-
-        document.getElementById('chat-form').onsubmit = async (e) => {
-            e.preventDefault();
-            const input = document.getElementById('message-input');
-            const text = input.value.trim();
-            if (!text) return;
-            input.value = '';
-            await addDoc(getMessagesCol(), {
-                text, user: currentUser.displayName, uid: currentUser.uid, createdAt: serverTimestamp()
-            });
-        };
-
-        // --- SETTINGS LOGIC ---
-        const modal = document.getElementById('settings-modal');
-        document.getElementById('settings-btn').onclick = () => {
-            modal.classList.remove('hidden');
-            if (vaultConfig.seeds) {
-                document.getElementById('config-k1').value = vaultConfig.seeds[0];
-                document.getElementById('config-k2').value = vaultConfig.seeds[1];
-                document.getElementById('config-k3').value = vaultConfig.seeds[2];
-            }
-        };
-        document.getElementById('close-settings').onclick = () => modal.classList.add('hidden');
-
-        document.getElementById('save-config').onclick = async () => {
-            const newName = document.getElementById('config-hub-name').value.trim();
-            const newSeeds = [
-                document.getElementById('config-k1').value.trim(),
-                document.getElementById('config-k2').value.trim(),
-                document.getElementById('config-k3').value.trim()
-            ];
-
-            if (!newName || newSeeds.some(s => !s)) {
-                alert("All fields required.");
-                return;
-            }
-
-            try {
-                const btn = document.getElementById('save-config');
-                btn.textContent = "Processing Rotation...";
-                btn.disabled = true;
-
-                if (vaultConfig.seeds) {
-                    for (let oldSeed of vaultConfig.seeds) {
-                        if (!newSeeds.includes(oldSeed)) {
-                            await deleteDoc(getVaultDoc('keys', `key_part_${oldSeed}`));
-                        }
-                    }
-                }
-
-                await saveNewConfig(newName, newSeeds);
-                alert("Configuration Updated. Relogging required.");
-                location.reload();
-            } catch (e) {
-                alert("Update failed: " + e.message);
-            }
-        };
-
+        document.getElementById('google-login-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
         document.getElementById('logout-btn').onclick = () => signOut(auth).then(() => location.reload());
 
-        window.onload = start;
+        // 2. FILE-KEY LOGIC
+        [1, 2, 3].forEach(num => {
+            const input = document.getElementById(`key-${num}`);
+            const slot = document.getElementById(`slot-${num}`);
+            
+            input.onchange = (e) => {
+                if (e.target.files.length > 0) {
+                    keysLoaded[num] = true;
+                    slot.classList.add('loaded');
+                    slot.querySelector('.icon').className = 'fas fa-check-circle text-2xl text-green-500';
+                    slot.querySelector('.name').textContent = e.target.files[0].name;
+                    checkAllKeys();
+                }
+            };
+        });
+
+        function checkAllKeys() {
+            const btn = document.getElementById('decrypt-btn');
+            if (keysLoaded[1] && keysLoaded[2] && keysLoaded[3]) {
+                btn.disabled = false;
+                btn.className = "px-12 py-4 bg-indigo-600 text-white font-black rounded-xl transition-all uppercase text-xs tracking-widest hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 active:scale-95";
+                btn.textContent = "Initiate Decryption";
+            }
+        }
+
+        document.getElementById('decrypt-btn').onclick = () => {
+            document.getElementById('lock-status').textContent = "READING KEY HASHES...";
+            setTimeout(() => {
+                document.getElementById('lock-layer').classList.add('hidden');
+                document.getElementById('hub-app').classList.remove('hidden');
+                startHub();
+            }, 1500);
+        };
+
+        // 3. HUB MONITORING
+        function startHub() {
+            onSnapshot(collection(db, "Users"), (snap) => {
+                const data = [];
+                snap.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
+                data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                render(data);
+            });
+        }
+
+        function render(data) {
+            const container = document.getElementById('messages-container');
+            container.innerHTML = '';
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-900/40 p-5 rounded-2xl border border-slate-800 flex flex-col gap-2 hover:border-slate-700 transition-all';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <div class="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                            <span class="text-[10px] font-black text-indigo-400 mono uppercase">${item.name || 'UNKNOWN_NODE'}</span>
+                        </div>
+                        <span class="text-[9px] text-slate-700 mono">${item.id}</span>
+                    </div>
+                    <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800/50">
+                        <p class="text-xs text-slate-300 mono leading-relaxed">${item.message || 'NO_DATA'}</p>
+                    </div>
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="text-[8px] text-slate-600 uppercase font-bold tracking-widest">Protocol: JSON/RELAY</span>
+                        <span class="text-[8px] text-slate-600 mono">${item.createdAt ? new Date(item.createdAt.seconds*1000).toLocaleString() : 'SYNCING'}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
     </script>
 </body>
 </html>
