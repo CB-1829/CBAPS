@@ -4,18 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bridge-OS | Logic Shell</title>
-    <!-- Pre-compiled Tailwind CSS to eliminate production console warnings -->
+    <!-- Stable Tailwind CSS via standard Link tag (Zero Console Warnings) -->
     <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        /* Essential Bridge-OS Custom Styles */
         :root {
             --bg-color: #020617;
             --card-bg: rgba(15, 23, 42, 0.5);
             --border-color: #1e293b;
             --accent-color: #4f46e5;
-            --input-bg: #0f172a; /* Dark Blue for textboxes */
+            --input-bg: #0f172a; 
         }
 
         body {
@@ -50,10 +49,8 @@
 
         .scrollbar-thin::-webkit-scrollbar { width: 4px; }
         .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-
         .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
         
-        /* Specific override for the dark blue textbox */
         .config-textarea {
             background-color: var(--input-bg) !important;
             border: 1px solid var(--border-color);
@@ -66,7 +63,7 @@
 </head>
 <body class="h-screen overflow-hidden flex flex-col">
 
-    <!-- STEP 1: DYNAMIC CONFIG LOADING -->
+    <!-- SETUP LAYER -->
     <div id="setup-layer" class="fixed inset-0 z-[300] bg-slate-950 flex items-center justify-center p-4">
         <div class="max-w-md w-full text-center">
             <div class="bg-indigo-600 w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl shadow-2xl mb-8">
@@ -81,7 +78,7 @@
         </div>
     </div>
 
-    <!-- STEP 2: TRIPLE FILE-KEY VAULT -->
+    <!-- LOCK LAYER -->
     <div id="lock-layer" class="hidden fixed inset-0 z-[200] bg-slate-950 flex flex-col items-center justify-center p-4">
         <div class="max-w-2xl w-full text-center space-y-8">
             <div class="space-y-2">
@@ -113,7 +110,7 @@
         </div>
     </div>
 
-    <!-- THE FINAL HUB INTERFACE -->
+    <!-- HUB INTERFACE -->
     <div id="hub-app" class="hidden flex h-screen bg-slate-950">
         <aside class="w-64 border-r border-slate-800 flex flex-col bg-slate-900 bg-opacity-50">
             <div class="p-6">
@@ -140,42 +137,39 @@
             <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-950 bg-opacity-80">
                 <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Event Relay Monitor</span>
                 <div id="project-tag" class="text-xs font-bold text-indigo-400 mono text-right">
-                    <span class="block text-[8px] opacity-50 uppercase tracking-widest">Collection Target</span>
+                    <span class="block text-[8px] opacity-50 uppercase tracking-widest">Target Path</span>
                     my_first_collection
                 </div>
             </header>
             <div id="messages-container" class="flex-1 overflow-y-auto p-8 space-y-4 scrollbar-thin">
-                <!-- Data packets will render here -->
                 <div class="flex items-center justify-center h-full">
-                    <p class="text-slate-600 mono text-[10px] uppercase tracking-widest animate-pulse">Initializing Stream...</p>
+                    <p class="text-slate-600 mono text-[10px] uppercase tracking-widest animate-pulse">Awaiting Decryption...</p>
                 </div>
             </div>
         </main>
     </div>
 
     <script type="module">
+        // Using stable version 11.6.1 (Version 12.x does not exist)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         let db;
         let keysLoaded = { 1: false, 2: false, 3: false };
 
-        // 1. DYNAMIC INITIALIZATION
         document.getElementById('init-system-btn').onclick = () => {
             const configText = document.getElementById('config-input').value;
             try {
                 const config = JSON.parse(configText);
                 const app = initializeApp(config);
                 db = getFirestore(app);
-                
                 document.getElementById('setup-layer').classList.add('hidden');
                 document.getElementById('lock-layer').classList.remove('hidden');
             } catch (e) {
-                alert("Invalid Firebase Configuration JSON. Please check your paste.");
+                alert("Invalid Firebase Configuration JSON.");
             }
         };
 
-        // 2. KEY LOADING LOGIC
         [1, 2, 3].forEach(num => {
             document.getElementById(`key-${num}`).onchange = (e) => {
                 if (e.target.files.length > 0) {
@@ -211,14 +205,8 @@
             
             onSnapshot(collection(db, targetCollection), (snap) => {
                 container.innerHTML = '';
-                
                 if (snap.empty) {
-                    container.innerHTML = `
-                        <div class="flex flex-col items-center justify-center h-full py-20 text-center">
-                            <i class="fas fa-database text-4xl text-slate-800 mb-4 block"></i>
-                            <p class="text-slate-600 mono text-xs uppercase tracking-widest">No documents found in "${targetCollection}"</p>
-                        </div>
-                    `;
+                    container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-700 mono text-xs uppercase italic">No Data in "${targetCollection}"</div>`;
                     return;
                 }
 
@@ -249,21 +237,14 @@
                             </div>
                             <div class="flex justify-between items-end opacity-40 pt-2 text-[9px]">
                                 <span class="uppercase tracking-tighter">System Timestamp</span>
-                                <span>${data.timestamp || 'NOT_RECORDED'}</span>
+                                <span>${data.timestamp || 'N/A'}</span>
                             </div>
                         </div>
                     `;
                     container.appendChild(card);
                 });
             }, (error) => {
-                console.error("Firestore Permission Denied:", error);
-                container.innerHTML = `
-                    <div class="bg-red-900 bg-opacity-20 border border-red-500 border-opacity-50 p-6 rounded-xl text-red-400 text-[10px] mono">
-                        <h3 class="font-black mb-2 uppercase">Security_Protocol_Violation</h3>
-                        <p>Access denied to <b>${targetCollection}</b>.</p>
-                        <p class="mt-4 opacity-70">REASON: Check if your Firestore rules allow public reads for the current environment.</p>
-                    </div>
-                `;
+                container.innerHTML = `<div class="p-6 bg-red-900/20 text-red-400 mono text-[10px] border border-red-500/50 rounded-xl">ERROR: ${error.message}</div>`;
             });
         }
     </script>
