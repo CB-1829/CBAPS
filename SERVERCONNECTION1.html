@@ -4,13 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bridge-OS | Logic Shell</title>
-    <!-- Use Tailwind Play CDN for development/demo portability -->
+    <!-- Tailwind Play CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script>
-        // Optional configuration to suppress standard console warnings 
-        // and define the theme to match Bridge-OS aesthetics
         tailwind.config = {
             theme: {
                 extend: {
@@ -128,7 +126,10 @@
         <main class="flex-1 flex flex-col grid-bg">
             <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-950/80 backdrop-blur-md">
                 <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Event Relay Monitor</span>
-                <div id="project-tag" class="text-xs font-bold text-indigo-400 font-mono">AWAITING_RELAY</div>
+                <div id="project-tag" class="text-xs font-bold text-indigo-400 font-mono text-right">
+                    <span class="block text-[8px] opacity-50 uppercase tracking-[0.2em]">Collection Target</span>
+                    my_first_collection
+                </div>
             </header>
             <div id="messages-container" class="flex-1 overflow-y-auto p-8 space-y-4 scrollbar-thin">
                 <!-- Data packets will render here -->
@@ -138,7 +139,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         let db;
         let keysLoaded = { 1: false, 2: false, 3: false };
@@ -151,7 +152,6 @@
                 const app = initializeApp(config);
                 db = getFirestore(app);
                 
-                document.getElementById('project-tag').textContent = config.projectId;
                 document.getElementById('setup-layer').classList.add('hidden');
                 document.getElementById('lock-layer').classList.remove('hidden');
             } catch (e) {
@@ -188,22 +188,66 @@
         };
 
         function startMonitor() {
-            onSnapshot(collection(db, "Users"), (snap) => {
+            // Updated to use the collection name from your screenshot
+            const targetCollection = "my_first_collection";
+            
+            onSnapshot(collection(db, targetCollection), (snap) => {
                 const container = document.getElementById('messages-container');
                 container.innerHTML = '';
+                
+                if (snap.empty) {
+                    container.innerHTML = `
+                        <div class="text-center py-20">
+                            <i class="fas fa-database text-4xl text-slate-800 mb-4 block"></i>
+                            <p class="text-slate-600 font-mono text-xs uppercase tracking-widest">No documents found in "${targetCollection}"</p>
+                        </div>
+                    `;
+                    return;
+                }
+
                 snap.forEach(doc => {
                     const data = doc.data();
                     const card = document.createElement('div');
-                    card.className = "bg-slate-900/50 p-4 rounded-xl border border-slate-800 font-mono text-xs";
+                    card.className = "bg-slate-900/50 p-6 rounded-xl border border-slate-800 font-mono text-xs shadow-xl";
+                    
+                    // Logic to display status color based on your DB screenshot
+                    const statusColor = data.status === 'Success!' ? 'text-green-400' : 'text-indigo-400';
+                    
                     card.innerHTML = `
-                        <div class="flex justify-between border-b border-slate-800 pb-2 mb-2 opacity-50">
-                            <span>ID: ${doc.id}</span>
-                            <span>SOURCE: ${data.name || 'UNKNOWN'}</span>
+                        <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
+                            <div class="flex flex-col">
+                                <span class="text-[8px] opacity-40 uppercase tracking-widest">Document ID</span>
+                                <span class="text-slate-400">${doc.id}</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[8px] opacity-40 uppercase tracking-widest block">Status</span>
+                                <span class="${statusColor} font-bold">${data.status || 'STABLE'}</span>
+                            </div>
                         </div>
-                        <div class="text-indigo-400">${data.message || 'NO_DATA'}</div>
+                        <div class="space-y-4">
+                            <div>
+                                <span class="text-[8px] opacity-40 uppercase tracking-widest block mb-1">Message Content</span>
+                                <div class="bg-slate-950/50 p-3 rounded border border-slate-800/50 text-indigo-100 italic">
+                                    "${data.message || 'EMPTY_PACKET'}"
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-end opacity-50 pt-2">
+                                <span class="text-[8px] uppercase tracking-tighter">Event Relay Timestamp</span>
+                                <span class="text-[9px]">${data.timestamp || 'N/A'}</span>
+                            </div>
+                        </div>
                     `;
                     container.appendChild(card);
                 });
+            }, (error) => {
+                console.error("Firestore Listen Error:", error);
+                const container = document.getElementById('messages-container');
+                container.innerHTML = `
+                    <div class="bg-red-900/20 border border-red-500/50 p-6 rounded-xl text-red-400 text-xs font-mono">
+                        <h3 class="font-black mb-2">ACCESS_DENIED_ERROR</h3>
+                        <p>Check Firestore Rules. Current collection path: <b>${targetCollection}</b></p>
+                    </div>
+                `;
             });
         }
     </script>
