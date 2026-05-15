@@ -1,26 +1,63 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
-import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Connection Test</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; background-color: #f4f4f9; }
+        .card { background: white; padding: 20px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #f5820d; color: white; border: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
 
-const firebaseConfig = {
-  // ... your config here ...
-};
+    <div class="card">
+        <h1>Firebase is Loading...</h1>
+        <p>If the connection works, you will see a pop-up alert.</p>
+        <button onclick="location.reload()">Refresh Page</button>
+    </div>
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+    <script type="module">
+        // 1. Import Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
-// This function sends data to your new database
-async function sendTest() {
-  try {
-    const docRef = await addDoc(collection(db, "my_first_collection"), {
-      status: "It works!",
-      time: new Date().toString()
-    });
-    console.log("Success! ID:", docRef.id);
-    alert("Data sent to Firebase!");
-  } catch (e) {
-    console.error("Error:", e);
-  }
-}
+        // 2. Your Project Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAzkbPwgoQxjInKQKy920DS1DqGbp4JGCc",
+            authDomain: "project-8903166040563241276.firebaseapp.com",
+            projectId: "project-8903166040563241276",
+            storageBucket: "project-8903166040563241276.firebasestorage.app",
+            messagingSenderId: "339987579353",
+            appId: "1:339987579353:web:fa44b45bc6e7e43e3a59c8",
+            measurementId: "G-JZ06FB1PFZ"
+        };
 
-// Run it!
-sendTest();
+        // 3. Initialize
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 4. Automated Test: Send data to Firestore
+        async function runAutoTest() {
+            try {
+                const docRef = await addDoc(collection(db, "my_first_collection"), {
+                    status: "Success!",
+                    message: "The code you pasted is working!",
+                    timestamp: new Date().toLocaleString()
+                });
+                console.log("Document written with ID: ", docRef.id);
+                document.querySelector('h1').innerText = "Connection Successful!";
+                alert("IT WORKS! Check your Firebase Console now.");
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                document.querySelector('h1').innerText = "Connection Failed";
+                alert("Error: " + e.message);
+            }
+        }
+
+        // Run the test immediately
+        runAutoTest();
+    </script>
+</body>
+</html>
