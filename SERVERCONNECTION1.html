@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bridge-OS | Logic Shell</title>
     <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         :root {
@@ -43,12 +42,15 @@
 
         .status-pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        
+        .icon-large { font-size: 3rem; }
     </style>
 </head>
 <body class="h-screen overflow-hidden flex flex-col">
 
+    <!-- ERROR SCREEN (No external icons) -->
     <div id="fatal-module-error" class="hidden module-failure-overlay">
-        <i class="fas fa-exclamation-triangle text-red-500 text-6xl mb-6 animate-bounce"></i>
+        <div class="icon-large mb-6 animate-bounce">⚠️</div>
         <h1 class="text-3xl font-black text-white mb-4 italic uppercase">Module Exec Failure</h1>
         <div class="bg-black/40 p-6 rounded-xl border border-red-500/50 max-w-xl text-left">
             <p class="text-red-400 mono text-sm mb-4">The browser blocked the Firebase v12.13.0 Module imports.</p>
@@ -59,10 +61,11 @@
         <button onclick="location.reload()" class="mt-8 px-10 py-4 bg-red-600 text-white font-black hover:bg-red-500 transition-all uppercase tracking-widest text-xs">Retry Connection</button>
     </div>
 
+    <!-- BOOT LAYER -->
     <div id="setup-layer" class="fixed inset-0 z-[300] bg-slate-950 flex items-center justify-center p-4">
         <div class="max-w-md w-full text-center">
-            <div class="bg-indigo-600 w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl shadow-2xl mb-8">
-                <i class="fas fa-satellite-dish"></i>
+            <div class="bg-indigo-600 w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white text-3xl shadow-2xl mb-8">
+                📡
             </div>
             <h1 class="text-2xl font-black text-white tracking-tight italic uppercase mb-2">Bridge Handshake</h1>
             <p id="boot-status" class="text-indigo-500 uppercase text-[9px] font-bold tracking-[0.2em] status-pulse">Connecting to Firebase CDN...</p>
@@ -76,10 +79,14 @@
         </div>
     </div>
 
+    <!-- HUB -->
     <div id="hub-app" class="hidden flex h-screen bg-slate-950 grid-bg">
         <aside class="w-64 border-r border-slate-800 flex flex-col bg-slate-900/80 backdrop-blur-md">
             <div class="p-6">
-                <h1 class="font-black text-white tracking-tighter text-xl italic mb-8">BRIDGE-V4</h1>
+                <div class="flex items-center gap-2 mb-8">
+                    <span class="text-xl">🌉</span>
+                    <h1 class="font-black text-white tracking-tighter text-xl italic">BRIDGE-V4</h1>
+                </div>
                 <div class="bg-green-500/10 border border-green-500/20 p-4 rounded-xl">
                     <span class="text-[8px] font-black text-green-400 uppercase block mb-1">Engine Status</span>
                     <div class="flex items-center space-x-2">
@@ -98,21 +105,20 @@
                 <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Active Firestore Relay</span>
                 <div class="text-[9px] font-bold text-indigo-400 mono">COLL: /Users</div>
             </header>
-            <div id="messages-container" class="flex-1 p-8 space-y-4 overflow-y-auto">
-                <div class="text-center py-20 text-slate-600 mono text-[10px] uppercase">Awaiting fresh data packets...</div>
+            <div id="messages-container" class="flex-1 p-8 space-y-4 overflow-y-auto text-center py-20 text-slate-600 mono text-[10px] uppercase">
+                Awaiting fresh data packets...
             </div>
         </main>
     </div>
 
     <script>
-        // Dead Man's Switch
         window.module_ok = false;
         const logEl = document.getElementById('console-log');
         
         function log(msg) {
             const div = document.createElement('div');
             div.textContent = `> ${msg}`;
-            logEl.appendChild(div);
+            if (logEl) logEl.appendChild(div);
         }
 
         setTimeout(() => {
@@ -123,7 +129,7 @@
     </script>
 
     <script type="module">
-        // 1. Connect to the Firebase Libraries (v12.13.0)
+        // 1. Connect to the Firebase Libraries
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
@@ -142,11 +148,10 @@
         };
 
         // 3. Turn on the connection
-        log("Initializing app...");
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 4. THE PART THAT ACTUALLY WORKS
+        // 4. THE PART THAT ACTUALLY WORKS:
         async function saveData() {
             try {
                 log("Attempting write to /Users...");
@@ -159,18 +164,16 @@
                 log("Handshake successful.");
                 document.getElementById('boot-status').innerText = "Sync Confirmed";
                 
-                // Switch to Hub
                 setTimeout(() => {
                     document.getElementById('setup-layer').classList.add('hidden');
                     document.getElementById('hub-app').classList.remove('hidden');
                     startMonitoring();
                 }, 1000);
 
+                alert("Check your Firebase screen now!");
             } catch (e) {
                 log("Error: " + e.message);
-                document.getElementById('boot-status').innerText = "Handshake Failed";
-                document.getElementById('boot-status').className = "text-red-500 uppercase text-[9px] font-bold tracking-[0.2em]";
-                alert("Firebase Error: " + e.message);
+                alert("Error: " + e.message);
             }
         }
 
@@ -181,11 +184,11 @@
                 snap.forEach(doc => {
                     const data = doc.data();
                     const el = document.createElement('div');
-                    el.className = "bg-slate-900/50 p-4 rounded-xl border border-slate-800 mono text-[10px]";
+                    el.className = "bg-slate-900/50 p-4 rounded-xl border border-slate-800 mono text-[10px] text-left";
                     el.innerHTML = `
                         <div class="flex justify-between text-indigo-500 mb-2">
                             <span>ID: ${doc.id}</span>
-                            <span>${data.name || 'Anonymous'}</span>
+                            <span>👤 ${data.name || 'Anonymous'}</span>
                         </div>
                         <div class="text-slate-300 italic">"${data.message || '...'}"</div>
                     `;
