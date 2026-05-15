@@ -103,7 +103,7 @@
         <main class="flex-1 flex flex-col">
             <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-950/50">
                 <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Active Firestore Relay</span>
-                <div class="text-[9px] font-bold text-indigo-400 mono">COLL: /Users</div>
+                <div class="text-[9px] font-bold text-indigo-400 mono">COLL: /my_first_collection</div>
             </header>
             <div id="messages-container" class="flex-1 p-8 space-y-4 overflow-y-auto text-center py-20 text-slate-600 mono text-[10px] uppercase">
                 Awaiting fresh data packets...
@@ -152,13 +152,15 @@
         const db = getFirestore(app);
 
         // 4. THE PART THAT ACTUALLY WORKS:
+        // Targeting 'my_first_collection' based on your screenshot
         async function saveData() {
             try {
-                log("Attempting write to /Users...");
-                await addDoc(collection(db, "Users"), {
+                log("Attempting write to /my_first_collection...");
+                await addDoc(collection(db, "my_first_collection"), {
                     name: "Test User",
                     message: "It finally works!",
-                    timestamp: new Date().toISOString()
+                    status: "Success!",
+                    timestamp: new Date().toLocaleString()
                 });
                 
                 log("Handshake successful.");
@@ -179,8 +181,13 @@
 
         function startMonitoring() {
             const container = document.getElementById('messages-container');
-            onSnapshot(collection(db, "Users"), (snap) => {
+            // Matching listener to the collection in your screenshot
+            onSnapshot(collection(db, "my_first_collection"), (snap) => {
                 container.innerHTML = '';
+                if (snap.empty) {
+                    container.innerHTML = '<div class="text-slate-600">Collection is empty.</div>';
+                    return;
+                }
                 snap.forEach(doc => {
                     const data = doc.data();
                     const el = document.createElement('div');
@@ -190,7 +197,8 @@
                             <span>ID: ${doc.id}</span>
                             <span>👤 ${data.name || 'Anonymous'}</span>
                         </div>
-                        <div class="text-slate-300 italic">"${data.message || '...'}"</div>
+                        <div class="text-slate-300 italic mb-1">"${data.message || '...'}"</div>
+                        <div class="text-[8px] text-slate-500 uppercase">${data.timestamp || ''}</div>
                     `;
                     container.prepend(el);
                 });
