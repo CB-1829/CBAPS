@@ -1,0 +1,26 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  // ... your config here ...
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// This function sends data to your new database
+async function sendTest() {
+  try {
+    const docRef = await addDoc(collection(db, "my_first_collection"), {
+      status: "It works!",
+      time: new Date().toString()
+    });
+    console.log("Success! ID:", docRef.id);
+    alert("Data sent to Firebase!");
+  } catch (e) {
+    console.error("Error:", e);
+  }
+}
+
+// Run it!
+sendTest();
