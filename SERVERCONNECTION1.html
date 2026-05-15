@@ -3,242 +3,207 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bridge-OS | File-Key Vault</title>
+    <title>Bridge-OS | Logic Shell</title>
+    <!-- Use Tailwind Play CDN for development/demo portability -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        .grid-bg { background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 30px 30px; }
-        
-        .file-slot {
-            border: 2px dashed #334155;
-            transition: all 0.3s;
-            cursor: pointer;
+    
+    <script>
+        // Optional configuration to suppress standard console warnings 
+        // and define the theme to match Bridge-OS aesthetics
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
         }
-        .file-slot.active {
-            border-color: #6366f1;
-            background: rgba(99, 102, 241, 0.05);
+    </script>
+
+    <style type="text/tailwindcss">
+        @layer components {
+            .grid-bg { 
+                background-image: radial-gradient(#1e293b 1px, transparent 1px); 
+                background-size: 30px 30px; 
+            }
+            
+            .file-slot {
+                @apply border-2 border-dashed border-slate-800 transition-all duration-300 cursor-pointer;
+            }
+            .file-slot.active { 
+                @apply border-indigo-600 bg-indigo-600/5;
+            }
+            .file-slot.loaded { 
+                @apply border-solid border-green-500 bg-green-500/5;
+            }
+            
+            .status-pulse { 
+                animation: pulse 2s infinite; 
+            }
         }
-        .file-slot.loaded {
-            border-style: solid;
-            border-color: #22c55e;
-            background: rgba(34, 197, 94, 0.05);
+
+        @keyframes pulse { 
+            0%, 100% { opacity: 1; } 
+            50% { opacity: 0.4; } 
         }
-        
-        .status-pulse { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-300 h-screen overflow-hidden flex flex-col">
+<body class="bg-slate-950 text-slate-300 h-screen overflow-hidden flex flex-col font-sans">
 
-    <!-- LAYER 1: GOOGLE HANDSHAKE -->
-    <div id="auth-layer" class="fixed inset-0 z-[200] bg-slate-950 flex items-center justify-center p-4">
+    <!-- STEP 1: DYNAMIC CONFIG LOADING -->
+    <div id="setup-layer" class="fixed inset-0 z-[300] bg-slate-950 flex items-center justify-center p-4">
         <div class="max-w-md w-full text-center space-y-8">
-            <div class="bg-indigo-600 w-20 h-20 rounded-3xl mx-auto flex items-center justify-center text-white text-3xl shadow-2xl">
-                <i class="fas fa-shield-halved"></i>
+            <div class="bg-indigo-600 w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl shadow-2xl">
+                <i class="fas fa-plug"></i>
             </div>
-            <div>
-                <h1 class="text-3xl font-black text-white tracking-tight">Access Protocol</h1>
-                <p class="text-slate-500 mt-2 uppercase text-[10px] font-bold tracking-widest">Step 1: Identity Verification</p>
+            <div class="space-y-2">
+                <h1 class="text-2xl font-black text-white tracking-tight italic">BRIDGE-INIT</h1>
+                <p class="text-slate-500 uppercase text-[9px] font-bold tracking-[0.2em]">Awaiting external Firebase Configuration</p>
             </div>
-            <button id="google-login-btn" class="w-full bg-white text-black font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-100 transition-all">
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
-                Verify via Google
+            <textarea id="config-input" placeholder="Paste your Firebase JSON config here..." class="w-full h-32 bg-slate-900 border border-slate-800 rounded-xl p-4 text-[10px] font-mono text-indigo-400 outline-none focus:border-indigo-500 transition-all"></textarea>
+            <button id="init-system-btn" class="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-slate-200 transition-all text-xs tracking-widest">LOAD CORE ENGINE</button>
+        </div>
+    </div>
+
+    <!-- STEP 2: TRIPLE FILE-KEY VAULT (HIDDEN UNTIL INIT) -->
+    <div id="lock-layer" class="hidden fixed inset-0 z-[200] bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div class="max-w-2xl w-full text-center space-y-8">
+            <div class="space-y-2">
+                <h2 class="text-2xl font-black text-white uppercase tracking-tighter">Physical Key Auth</h2>
+                <p class="text-[10px] text-slate-500 uppercase tracking-widest">Insert 3 Keyfiles to Decrypt Node</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <label for="key-1" id="slot-1" class="file-slot p-8 rounded-2xl flex flex-col items-center gap-4">
+                    <input type="file" id="key-1" class="hidden">
+                    <i class="fas fa-file-code text-2xl text-slate-600 icon"></i>
+                    <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400 name">ALPHA.key</span>
+                </label>
+                <label for="key-2" id="slot-2" class="file-slot p-8 rounded-2xl flex flex-col items-center gap-4">
+                    <input type="file" id="key-2" class="hidden">
+                    <i class="fas fa-file-contract text-2xl text-slate-600 icon"></i>
+                    <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400 name">BETA.sig</span>
+                </label>
+                <label for="key-3" id="slot-3" class="file-slot p-8 rounded-2xl flex flex-col items-center gap-4">
+                    <input type="file" id="key-3" class="hidden">
+                    <i class="fas fa-file-export text-2xl text-slate-600 icon"></i>
+                    <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400 name">GAMMA.vault</span>
+                </label>
+            </div>
+
+            <button id="decrypt-btn" disabled class="px-12 py-4 bg-slate-800 text-slate-500 font-black rounded-xl transition-all uppercase text-xs tracking-widest cursor-not-allowed">
+                Keys Missing
             </button>
         </div>
     </div>
 
-    <!-- LAYER 2: TRIPLE FILE-KEY VAULT -->
-    <div id="lock-layer" class="hidden fixed inset-0 z-[150] bg-slate-950 flex flex-col items-center justify-center p-4">
-        <div class="max-w-2xl w-full text-center space-y-8">
-            <div class="space-y-2">
-                <h2 class="text-2xl font-black text-white uppercase tracking-tighter">Insert Physical Keyfiles</h2>
-                <p class="text-[10px] text-slate-500 uppercase tracking-widest">Step 2: Triple-Extension Decryption Required</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <!-- Key 1 -->
-                <label for="key-1" id="slot-1" class="file-slot p-8 rounded-2xl flex flex-col items-center gap-4">
-                    <input type="file" id="key-1" class="hidden">
-                    <i class="fas fa-file-code text-2xl text-slate-600 icon"></i>
-                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 name">ALPHA.key</span>
-                </label>
-                <!-- Key 2 -->
-                <label for="key-2" id="slot-2" class="file-slot p-8 rounded-2xl flex flex-col items-center gap-4">
-                    <input type="file" id="key-2" class="hidden">
-                    <i class="fas fa-file-contract text-2xl text-slate-600 icon"></i>
-                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 name">BETA.sig</span>
-                </label>
-                <!-- Key 3 -->
-                <label for="key-3" id="slot-3" class="file-slot p-8 rounded-2xl flex flex-col items-center gap-4">
-                    <input type="file" id="key-3" class="hidden">
-                    <i class="fas fa-file-export text-2xl text-slate-600 icon"></i>
-                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 name">GAMMA.vault</span>
-                </label>
-            </div>
-
-            <div class="pt-4">
-                <button id="decrypt-btn" disabled class="px-12 py-4 bg-slate-800 text-slate-500 font-black rounded-xl transition-all uppercase text-xs tracking-widest cursor-not-allowed">
-                    System Locked
-                </button>
-                <p id="lock-status" class="mt-4 text-[10px] text-indigo-500 font-bold uppercase h-4 tracking-widest"></p>
-            </div>
-        </div>
-    </div>
-
-    <!-- LAYER 3: THE CONNECTION HUB -->
+    <!-- THE FINAL HUB INTERFACE -->
     <div id="hub-app" class="hidden flex h-screen bg-slate-950">
         <aside class="w-64 border-r border-slate-800 flex flex-col bg-slate-900/50 backdrop-blur-xl">
             <div class="p-6">
                 <div class="flex items-center gap-3 mb-8">
-                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white"><i class="fas fa-network-wired"></i></div>
-                    <h1 class="font-black text-white tracking-tighter text-xl">HUB-V3</h1>
+                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white"><i class="fas fa-microchip"></i></div>
+                    <h1 class="font-black text-white tracking-tighter text-xl">BRIDGE-V4</h1>
                 </div>
-                <nav class="space-y-1">
-                    <a href="#" class="flex items-center gap-3 px-4 py-3 bg-indigo-600/10 text-indigo-400 rounded-xl border border-indigo-600/20 text-xs font-bold">
-                        <i class="fas fa-terminal"></i> Relay Monitor
-                    </a>
-                </nav>
+                <div class="space-y-4">
+                    <div class="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl">
+                        <span class="text-[8px] font-black text-indigo-400 uppercase block mb-1">System Status</span>
+                        <div class="flex items-center gap-2">
+                            <div class="w-1.5 h-1.5 rounded-full bg-green-500 status-pulse"></div>
+                            <span class="text-[10px] text-white font-mono">LIVE_SYNC_ON</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="mt-auto p-6 border-t border-slate-800 flex flex-col gap-2">
-                <div class="flex items-center gap-2 mb-4">
-                    <div class="w-2 h-2 rounded-full bg-green-500 status-pulse"></div>
-                    <span class="text-[9px] text-slate-500 uppercase font-black">Secure Link Active</span>
-                </div>
-                <button id="logout-btn" class="text-[10px] font-black text-slate-600 hover:text-red-500 uppercase tracking-widest transition-all">Emergency Shutdown</button>
+            <div class="mt-auto p-6">
+                <button onclick="location.reload()" class="text-[10px] font-black text-slate-600 hover:text-red-400 uppercase tracking-widest transition-all">Emergency Wipe</button>
             </div>
         </aside>
 
         <main class="flex-1 flex flex-col grid-bg">
             <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-950/80 backdrop-blur-md">
-                <div class="flex items-center gap-4">
-                    <div class="flex flex-col">
-                        <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Project UID</span>
-                        <span class="text-white font-bold text-xs mono">project-89031660...76</span>
-                    </div>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-right">
-                        <p id="hub-user-name" class="text-xs font-bold text-white"></p>
-                        <p class="text-[8px] text-indigo-400 mono font-bold uppercase tracking-widest">Authenticated Admin</p>
-                    </div>
-                    <img id="hub-avatar" class="w-8 h-8 rounded-lg border border-slate-700" src="">
-                </div>
+                <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Event Relay Monitor</span>
+                <div id="project-tag" class="text-xs font-bold text-indigo-400 font-mono">AWAITING_RELAY</div>
             </header>
-
-            <div class="flex-1 overflow-hidden p-8">
-                <div id="messages-container" class="h-full overflow-y-auto space-y-3 scrollbar-thin pr-4">
-                    <!-- DATA PACKETS LOAD HERE -->
-                </div>
+            <div id="messages-container" class="flex-1 overflow-y-auto p-8 space-y-4 scrollbar-thin">
+                <!-- Data packets will render here -->
             </div>
         </main>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyAzkbPwgoQxjInKQKy920DS1DqGbp4JGCc",
-            authDomain: "project-8903166040563241276.firebaseapp.com",
-            projectId: "project-8903166040563241276",
-            storageBucket: "project-8903166040563241276.firebasestorage.app",
-            messagingSenderId: "339987579353",
-            appId: "1:339987579353:web:fa44b45bc6e7e43e3a59c8"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        
-        let currentUser = null;
+        let db;
         let keysLoaded = { 1: false, 2: false, 3: false };
 
-        // 1. IDENTITY WATCHER
-        onAuthStateChanged(auth, user => {
-            if (user) {
-                currentUser = user;
-                document.getElementById('hub-avatar').src = user.photoURL;
-                document.getElementById('hub-user-name').textContent = user.displayName;
-                document.getElementById('auth-layer').classList.add('hidden');
+        // 1. DYNAMIC INITIALIZATION
+        document.getElementById('init-system-btn').onclick = () => {
+            const configText = document.getElementById('config-input').value;
+            try {
+                const config = JSON.parse(configText);
+                const app = initializeApp(config);
+                db = getFirestore(app);
+                
+                document.getElementById('project-tag').textContent = config.projectId;
+                document.getElementById('setup-layer').classList.add('hidden');
                 document.getElementById('lock-layer').classList.remove('hidden');
-            } else {
-                document.getElementById('auth-layer').classList.remove('hidden');
+            } catch (e) {
+                alert("Invalid Firebase Configuration JSON");
             }
-        });
+        };
 
-        document.getElementById('google-login-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
-        document.getElementById('logout-btn').onclick = () => signOut(auth).then(() => location.reload());
-
-        // 2. FILE-KEY LOGIC
+        // 2. KEY LOADING LOGIC
         [1, 2, 3].forEach(num => {
-            const input = document.getElementById(`key-${num}`);
-            const slot = document.getElementById(`slot-${num}`);
-            
-            input.onchange = (e) => {
+            document.getElementById(`key-${num}`).onchange = (e) => {
                 if (e.target.files.length > 0) {
                     keysLoaded[num] = true;
+                    const slot = document.getElementById(`slot-${num}`);
                     slot.classList.add('loaded');
                     slot.querySelector('.icon').className = 'fas fa-check-circle text-2xl text-green-500';
-                    slot.querySelector('.name').textContent = e.target.files[0].name;
-                    checkAllKeys();
+                    checkKeys();
                 }
             };
         });
 
-        function checkAllKeys() {
-            const btn = document.getElementById('decrypt-btn');
+        function checkKeys() {
             if (keysLoaded[1] && keysLoaded[2] && keysLoaded[3]) {
+                const btn = document.getElementById('decrypt-btn');
                 btn.disabled = false;
-                btn.className = "px-12 py-4 bg-indigo-600 text-white font-black rounded-xl transition-all uppercase text-xs tracking-widest hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 active:scale-95";
-                btn.textContent = "Initiate Decryption";
+                btn.className = "px-12 py-4 bg-indigo-600 text-white font-black rounded-xl transition-all uppercase text-xs tracking-widest hover:bg-indigo-500 cursor-pointer";
+                btn.textContent = "Decrypt System";
             }
         }
 
         document.getElementById('decrypt-btn').onclick = () => {
-            document.getElementById('lock-status').textContent = "READING KEY HASHES...";
-            setTimeout(() => {
-                document.getElementById('lock-layer').classList.add('hidden');
-                document.getElementById('hub-app').classList.remove('hidden');
-                startHub();
-            }, 1500);
+            document.getElementById('lock-layer').classList.add('hidden');
+            document.getElementById('hub-app').classList.remove('hidden');
+            startMonitor();
         };
 
-        // 3. HUB MONITORING
-        function startHub() {
+        function startMonitor() {
             onSnapshot(collection(db, "Users"), (snap) => {
-                const data = [];
-                snap.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
-                data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                render(data);
-            });
-        }
-
-        function render(data) {
-            const container = document.getElementById('messages-container');
-            container.innerHTML = '';
-            data.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'bg-slate-900/40 p-5 rounded-2xl border border-slate-800 flex flex-col gap-2 hover:border-slate-700 transition-all';
-                card.innerHTML = `
-                    <div class="flex justify-between items-center">
-                        <div class="flex items-center gap-2">
-                            <div class="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
-                            <span class="text-[10px] font-black text-indigo-400 mono uppercase">${item.name || 'UNKNOWN_NODE'}</span>
+                const container = document.getElementById('messages-container');
+                container.innerHTML = '';
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const card = document.createElement('div');
+                    card.className = "bg-slate-900/50 p-4 rounded-xl border border-slate-800 font-mono text-xs";
+                    card.innerHTML = `
+                        <div class="flex justify-between border-b border-slate-800 pb-2 mb-2 opacity-50">
+                            <span>ID: ${doc.id}</span>
+                            <span>SOURCE: ${data.name || 'UNKNOWN'}</span>
                         </div>
-                        <span class="text-[9px] text-slate-700 mono">${item.id}</span>
-                    </div>
-                    <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800/50">
-                        <p class="text-xs text-slate-300 mono leading-relaxed">${item.message || 'NO_DATA'}</p>
-                    </div>
-                    <div class="flex justify-between items-center mt-1">
-                        <span class="text-[8px] text-slate-600 uppercase font-bold tracking-widest">Protocol: JSON/RELAY</span>
-                        <span class="text-[8px] text-slate-600 mono">${item.createdAt ? new Date(item.createdAt.seconds*1000).toLocaleString() : 'SYNCING'}</span>
-                    </div>
-                `;
-                container.appendChild(card);
+                        <div class="text-indigo-400">${data.message || 'NO_DATA'}</div>
+                    `;
+                    container.appendChild(card);
+                });
             });
         }
     </script>
