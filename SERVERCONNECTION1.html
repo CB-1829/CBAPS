@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bridge-OS | Logic Shell</title>
     
+    <!-- This line tells the browser to use a blank/inline icon so it stops looking for /favicon.ico -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌉</text></svg>">
+    
     <style>
         :root {
             --bg-color: #020617;
@@ -157,7 +160,6 @@
             if (logEl) logEl.appendChild(div);
         }
 
-        // Dead man's switch for module loading
         setTimeout(() => {
             if (!window.module_ok) {
                 document.getElementById('fatal-module-error').classList.remove('hidden');
@@ -166,14 +168,12 @@
     </script>
 
     <script type="module">
-        // 1. Connect to the Firebase Libraries
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
         window.module_ok = true;
         log("Modules imported successfully.");
 
-        // 2. Your specific project details
         const firebaseConfig = {
             apiKey: "AIzaSyAzkbPwgoQxjInKQKy920DS1DqGbp4JGCc",
             authDomain: "project-8903166040563241276.firebaseapp.com",
@@ -184,15 +184,13 @@
             measurementId: "G-JZ06FB1PFZ"
         };
 
-        // 3. Turn on the connection
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 4. THE PART THAT ACTUALLY WORKS:
         async function saveData(customName, customMsg) {
             try {
-                const name = customName || "Test User";
-                const message = customMsg || "It finally works!";
+                const name = customName || "Initial Boot";
+                const message = customMsg || "Connection Established.";
                 
                 log(`Writing to /my_first_collection...`);
                 await addDoc(collection(db, "my_first_collection"), {
@@ -205,7 +203,6 @@
                 log("Handshake successful.");
                 document.getElementById('boot-status').innerText = "Sync Confirmed";
                 
-                // On first load, clear the boot screen
                 if(document.getElementById('setup-layer').style.display !== 'none') {
                     setTimeout(() => {
                         document.getElementById('setup-layer').style.display = 'none';
@@ -219,21 +216,17 @@
             }
         }
 
-        // Real-time listener
         function startMonitoring() {
             const container = document.getElementById('messages-container');
             onSnapshot(collection(db, "my_first_collection"), (snap) => {
                 if (snap.empty) {
-                    container.innerHTML = '<div style="color: #475569; padding-top: 4rem;">Collection is empty. Awaiting first packet...</div>';
+                    container.innerHTML = '<div style="color: #475569; padding-top: 4rem;">Collection is empty.</div>';
                     return;
                 }
                 
                 container.innerHTML = '';
-                // Get all docs and sort by timestamp in memory (since we can't use orderBy without index)
                 const docs = [];
                 snap.forEach(doc => docs.push({id: doc.id, ...doc.data()}));
-                
-                // Sort by date (descending)
                 docs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
                 docs.forEach(data => {
@@ -250,10 +243,10 @@
                     el.innerHTML = `
                         <div style="display: flex; justify-content: space-between; color: #818cf8; margin-bottom: 0.5rem;">
                             <span>PACKET_ID: ${data.id}</span>
-                            <span style="color: #4ade80;">👤 ${data.name || 'ANON_ENTITY'}</span>
+                            <span style="color: #4ade80;">👤 ${data.name || 'ANON'}</span>
                         </div>
                         <div style="color: #cbd5e1; font-style: italic; margin-bottom: 0.5rem; border-left: 2px solid #4f46e5; padding-left: 0.75rem;">
-                            ${data.message || 'EMPTY_PACKET'}
+                            ${data.message || '...'}
                         </div>
                         <div style="font-size: 8px; color: #64748b; text-transform: uppercase;">TIMESTAMP: ${data.timestamp || 'N/A'}</div>
                     `;
@@ -262,21 +255,16 @@
             });
         }
 
-        // Attach manual write event
         document.getElementById('btn-write').addEventListener('click', () => {
             const name = document.getElementById('input-name').value;
             const msg = document.getElementById('input-msg').value;
-            
-            if(!msg.trim()) return alert("Message packet cannot be empty.");
-            
+            if(!msg.trim()) return;
             saveData(name, msg);
-            
-            // Clear inputs
             document.getElementById('input-name').value = '';
             document.getElementById('input-msg').value = '';
         });
 
-        // This runs the function immediately when the page loads to sync initial state
+        // First boot write
         saveData();
     </script>
 </body>
